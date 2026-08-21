@@ -483,18 +483,32 @@ def({
   id: 'farmland', label: 'Farmland', group: 'ground', scale: 2,
   make(px, p, rng) {
     const n = new TileableNoise(8, rng.int(1, 1e6));
-    const strips = rng.int(5, 9);
+    const fields = new WorleyNoise(7, rng.int(1, 1e6), 1);
+    // Fields, not stripes. The old version banded the whole tile horizontally,
+    // which on a city map put faint horizontal lines from one edge of the
+    // countryside to the other — the most visible artefact on the page, and
+    // nothing like farmland, which is a patchwork of irregular enclosures each
+    // ploughed in its own direction.
     const r = ramp([
-      { t: 0, color: mix(p.lowland, '#5c4326', 0.5) },
-      { t: 0.5, color: mix(p.grass, p.lowland, 0.5) },
-      { t: 1, color: mix(p.grass, '#d6d67a', 0.5) },
+      { t: 0, color: mix(p.lowland, '#6b5334', 0.42) },
+      { t: 0.3, color: mix(p.lowland, '#87703f', 0.3) },
+      { t: 0.58, color: mix(p.grass, p.lowland, 0.42) },
+      { t: 0.82, color: mix(p.grass, '#c4c47e', 0.35) },
+      { t: 1, color: mix(p.grass, '#dcd898', 0.48) },
     ]);
     px.each((u, v) => {
-      const band = Math.floor(v * strips) / strips;
-      const jitter = n.noise(band * 12, 3.1) * 0.35;
-      const base = n.fbm(u * 8, v * 8, 3) * 0.2 + 0.5;
-      const furrow = Math.sin(u * Math.PI * 2 * 40) * 0.05;
-      const c = r(clamp01(base + jitter + furrow));
+      const [f1, f2, id] = fields.f1f2id(u * 7, v * 7);
+      // Each enclosure gets its own crop, its own stage of growth, and its own
+      // furrow direction, derived from the cell id so it stays put.
+      const crop = (id - 0.5) * 0.5;
+      const angle = id * Math.PI * 2;
+      const ca = Math.cos(angle), sa = Math.sin(angle);
+      const along = u * ca + v * sa;
+      const furrow = Math.sin(along * Math.PI * 2 * 46) * 0.045;
+      // Hedge or wall on the boundary between two fields.
+      const hedge = (1 - smoothstep(0.0, 0.035, f2 - f1)) * 0.34;
+      const base = n.fbm(u * 8, v * 8, 3) * 0.16 + 0.52;
+      const c = r(clamp01(base + crop + furrow - hedge));
       return [c[0], c[1], c[2], 255];
     });
   },

@@ -136,7 +136,7 @@ function paintGround(doc: MapDocument, o: CityGenOptions, rng: RNG): void {
     ? [
         { textureId: 'grass-lush', weight: 3.2 },
         { textureId: 'grass', weight: 2.8 },
-        { textureId: 'farmland', weight: 2.8 },
+        { textureId: 'farmland', weight: 1.7 },
         { textureId: 'plains', weight: 1.4 },
         { textureId: 'dirt', weight: 1.1 },
       ]
@@ -318,52 +318,114 @@ function nearestStreetInfo(p: Vec2, streets: Street[]): { d: number; angle: numb
   return { d: best, angle };
 }
 
+interface Building { x: number; y: number; w: number; h: number; rot: number; }
+
+/**
+ * Separating-axis test for two rotated rectangles, with a small margin so
+ * buildings share a party wall rather than fusing into one roof.
+ */
+function obbOverlap(a: Building, b: Building, margin = 1.2): boolean {
+  const ar = (a.rot * Math.PI) / 180, br = (b.rot * Math.PI) / 180;
+  const axes = [
+    { x: Math.cos(ar), y: Math.sin(ar) },
+    { x: -Math.sin(ar), y: Math.cos(ar) },
+    { x: Math.cos(br), y: Math.sin(br) },
+    { x: -Math.sin(br), y: Math.cos(br) },
+  ];
+  const dx = b.x - a.x, dy = b.y - a.y;
+
+  for (const ax of axes) {
+    // Half-extent of each box projected onto this axis.
+    const ea = Math.abs(Math.cos(ar) * ax.x + Math.sin(ar) * ax.y) * (a.w / 2)
+      + Math.abs(-Math.sin(ar) * ax.x + Math.cos(ar) * ax.y) * (a.h / 2);
+    const eb = Math.abs(Math.cos(br) * ax.x + Math.sin(br) * ax.y) * (b.w / 2)
+      + Math.abs(-Math.sin(br) * ax.x + Math.cos(br) * ax.y) * (b.h / 2);
+    const sep = Math.abs(dx * ax.x + dy * ax.y);
+    if (sep >= ea + eb + margin) return false;   // a gap on this axis: no overlap
+  }
+  return true;
+}
+
+/**
+ * Buildings laid out along street frontages.
+ *
+ * The obvious approach — scatter rectangles, reject the ones that land on a
+ * road — produces a field of detached rectangles at random angles, because
+ * nothing in it knows which street a given building belongs to. A town read
+ * from above is the opposite of that: buildings stand shoulder to shoulder in
+ * a continuous line, with their short side to the street and their backs to a
+ * shared block interior, and the gaps between them are the exceptions.
+ *
+ * So the placement walks each street instead, stepping along it and setting a
+ * plot down on each side, offset by half the street width plus half the plot's
+ * depth. Density falls off from the centre, backland plots fill the interiors,
+ * and the whole thing needs no rejection sampling at all beyond checking that
+ * neighbouring streets have not already claimed the ground.
+ */
 function placeBuildings(
   doc: MapDocument, cx: number, cy: number, R: number,
   boundary: Vec2[], streets: Street[], waterPoly: Vec2[] | null,
   rng: RNG, o: CityGenOptions, params: { buildings: number },
-): { x: number; y: number; w: number; h: number; rot: number }[] {
+): Building[] {
   const layer = doc.layers.find((l) => l.kind === 'object' && l.name === 'Buildings');
   if (!layer || layer.kind !== 'object') return [];
   const palette = paletteById(o.paletteId);
 
-  const placed: { x: number; y: number; w: number; h: number; rot: number }[] = [];
+  const placed: Building[] = [];
   const target = params.buildings;
-  const roofs = ['#8a3f34', '#6b4a2a', '#5a5f52', '#7a5a3a', '#4a5a63', '#8a6a3a'];
+  // Roof colours weighted the way a real town is roofed: mostly thatch and
+  // weathered timber, some slate, and clay tile as the expensive minority. An
+  // even spread over the same eight colours reads as a box of toy bricks.
+  const roofs: [string, number][] = [
+    ['#7a5a3a', 9],   // thatch
+    ['#6b4a2a', 8],   // dark timber shingle
+    ['#8a6a45', 6],   // pale thatch
+    ['#5a5f52', 5],   // mossy slate
+    ['#6d5548', 4],   // weathered board
+    ['#8a4a3d', 2],   // clay tile
+    ['#4f5c63', 1],   // blue slate
+  ];
 
-  let attempts = 0;
-  while (placed.length < target && attempts < target * 40) {
-    attempts++;
-    const a = rng.float(0, Math.PI * 2);
-    const rr = Math.sqrt(rng.next()) * R * 1.02;
-    const p = { x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr * 0.95 };
-    if (!pointInPolygon(p, boundary)) continue;
-    if (waterPoly && pointInPolygon(p, waterPoly)) continue;
-
-    const info = nearestStreetInfo(p, streets);
-    if (info.d < 4) continue;                 // on the road
-    if (info.d > R * 0.1) continue;           // nowhere near a road
-
-    // Buildings crowd towards the centre and thin out at the edges.
-    const densityBias = 1 - clamp01(rr / R);
-    const w = rng.float(22, 40) * (0.75 + densityBias * 0.45);
-    const h = rng.float(18, 34) * (0.75 + densityBias * 0.45);
-    // Face the nearest street, which is what makes a block read as a block.
-    const rot = (info.angle * 180) / Math.PI + (rng.bool() ? 0 : 90) + rng.float(-3, 3);
-
-    // Overlap rejection using a circular approximation. A small gap only —
-    // medieval towns are wall-to-wall, not detached houses on plots.
-    const rad = Math.max(w, h) * 0.46;
-    let clash = false;
-    for (const b of placed) {
-      if (dist(p, b) < rad + Math.max(b.w, b.h) * 0.46) { clash = true; break; }
+  // Broad-phase grid so the overlap test does not become O(n²) on a large city.
+  const CELL = 48;
+  const buckets = new Map<string, Building[]>();
+  const bucketKey = (x: number, y: number) => `${Math.floor(x / CELL)},${Math.floor(y / CELL)}`;
+  const nearby = (x: number, y: number): Building[] => {
+    const out: Building[] = [];
+    const bx = Math.floor(x / CELL), by = Math.floor(y / CELL);
+    for (let j = -1; j <= 1; j++) {
+      for (let i = -1; i <= 1; i++) {
+        const b = buckets.get(`${bx + i},${by + j}`);
+        if (b) out.push(...b);
+      }
     }
-    if (clash) continue;
+    return out;
+  };
 
-    placed.push({ x: p.x, y: p.y, w, h, rot });
-    const roof = rng.pick(roofs);
-    layer.objects.push(makeShape('rect', p.x, p.y, w, h, o.paletteId, {
-      rotation: rot,
+  const fits = (b: Building): boolean => {
+    // A circular approximation cannot express "shoulder to shoulder": a plot
+    // 16 wide and 28 deep gets a 12-unit exclusion radius in every direction,
+    // so its neighbour along the street is pushed 25 units away and the terrace
+    // comes out as a row of detached villas. Medieval towns are built to the
+    // party wall, so the test has to know which way each building faces.
+    const rb = Math.hypot(b.w, b.h) * 0.5;
+    for (const other of nearby(b.x, b.y)) {
+      const gap = dist(b, other);
+      if (gap > rb + Math.hypot(other.w, other.h) * 0.5) continue;   // cheap reject
+      if (obbOverlap(b, other)) return false;
+    }
+    return true;
+  };
+
+  const commit = (b: Building): void => {
+    placed.push(b);
+    const k = bucketKey(b.x, b.y);
+    const list = buckets.get(k);
+    if (list) list.push(b); else buckets.set(k, [b]);
+
+    const roof = rng.pickWeighted(roofs);
+    layer.objects.push(makeShape('rect', b.x, b.y, b.w, b.h, o.paletteId, {
+      rotation: b.rot,
       fill: { type: 'linear', color: mix(roof, '#ffffff', 0.15), color2: mix(roof, '#000000', 0.35), angle: 35 },
       strokeColor: rgba(palette.ink, 0.75),
       strokeWidth: 1.6,
@@ -371,14 +433,89 @@ function placeBuildings(
       name: 'Building',
       shadow: { color: 'rgba(0,0,0,0.35)', blur: 6, dx: 3, dy: 4 },
     }) as ShapeObject);
-    // A ridge line down the roof sells the third dimension.
-    layer.objects.push(makeShape('rect', p.x, p.y, w * 0.94, 1.6, o.paletteId, {
-      rotation: rot,
-      fill: { type: 'solid', color: rgba('#ffffff', 0.35) },
-      strokeWidth: 0,
-      strokeColor: 'transparent',
-      name: 'Ridge',
-    }) as ShapeObject);
+    // A ridge line down the roof sells the third dimension. It runs along the
+    // building's longer axis, which is how a gable actually sits.
+    const alongW = b.w >= b.h;
+    layer.objects.push(makeShape(
+      'rect', b.x, b.y,
+      alongW ? b.w * 0.9 : 1.7,
+      alongW ? 1.7 : b.h * 0.9,
+      o.paletteId, {
+        rotation: b.rot,
+        fill: { type: 'solid', color: rgba('#ffffff', 0.32) },
+        strokeWidth: 0,
+        strokeColor: 'transparent',
+        name: 'Ridge',
+      },
+    ) as ShapeObject);
+  };
+
+  const insideTown = (p: Vec2): boolean =>
+    pointInPolygon(p, boundary) && !(waterPoly && pointInPolygon(p, waterPoly));
+
+  // --- Frontages -----------------------------------------------------------
+  // Longer, busier streets first: when two streets compete for a corner plot,
+  // the more important one should win it.
+  const ordered = streets.slice().sort((a, b) => (b.major ? 1 : 0) - (a.major ? 1 : 0));
+
+  for (const st of ordered) {
+    if (placed.length >= target) break;
+    for (let i = 1; i < st.pts.length && placed.length < target; i++) {
+      const a = st.pts[i - 1], b = st.pts[i];
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      if (segLen < 6) continue;
+      const ux = (b.x - a.x) / segLen, uy = (b.y - a.y) / segLen;
+      const nx = -uy, ny = ux;
+      const angle = (Math.atan2(uy, ux) * 180) / Math.PI;
+
+      let travelled = rng.float(0, 14);
+      while (travelled < segLen && placed.length < target) {
+        const px = a.x + ux * travelled, py = a.y + uy * travelled;
+        const rr = Math.hypot(px - cx, py - cy);
+        const density = clamp01(1 - rr / (R * 1.05));
+
+        // Plot frontage along the street, and depth back from it. Frontages are
+        // narrow and deep — burgage plots, not suburban lots.
+        const front = rng.float(13, 24) * (0.8 + density * 0.35);
+        const depth = rng.float(20, 34) * (0.78 + density * 0.35);
+
+        for (const side of [1, -1]) {
+          // A gap in the terrace: yards, alleys, and the odd bombed-out plot.
+          if (rng.bool(0.22 - density * 0.14)) continue;
+          const off = st.width / 2 + depth / 2 + rng.float(1.5, 4);
+          const p = { x: px + nx * off * side, y: py + ny * off * side };
+          if (!insideTown(p)) continue;
+          const b2: Building = { x: p.x, y: p.y, w: front, h: depth, rot: angle + rng.float(-2.5, 2.5) };
+          if (!fits(b2)) continue;
+          commit(b2);
+        }
+        travelled += front + rng.float(0.5, 3);
+      }
+    }
+  }
+
+  // --- Backland ------------------------------------------------------------
+  // Workshops, stables and infill behind the street frontages. Without these
+  // the block interiors read as suspiciously empty courtyards.
+  let attempts = 0;
+  const backlandTarget = Math.round(target * 0.42);
+  let backland = 0;
+  while (backland < backlandTarget && attempts < backlandTarget * 60) {
+    attempts++;
+    const ang = rng.float(0, Math.PI * 2);
+    const rr = Math.sqrt(rng.next()) * R * 0.95;
+    const p = { x: cx + Math.cos(ang) * rr, y: cy + Math.sin(ang) * rr * 0.95 };
+    if (!insideTown(p)) continue;
+    const info = nearestStreetInfo(p, streets);
+    if (info.d < 6) continue;
+    const w = rng.float(12, 20), h = rng.float(12, 20);
+    const b: Building = {
+      x: p.x, y: p.y, w, h,
+      rot: (info.angle * 180) / Math.PI + rng.pick([0, 90]) + rng.float(-6, 6),
+    };
+    if (!fits(b)) continue;
+    commit(b);
+    backland++;
   }
 
   return placed;
