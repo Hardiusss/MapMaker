@@ -386,8 +386,22 @@ function CaveForm({ value, onChange }: { value: CaveGenOptions; onChange: (v: Ca
       <div>
         <Section title="Caverns">
           <SeedRow value={value} onChange={onChange} />
-          <Slider label="Rock density" value={value.density} min={0.3} max={0.6} step={0.01}
-            onChange={(v) => set({ density: v })} />
+          <SelectField label="Layout" value={value.style}
+            options={[
+              { value: 'chambers', label: 'Chambers & tunnels' },
+              { value: 'warren', label: 'Warren (many small pockets)' },
+              { value: 'cavern', label: 'One open cavern' },
+            ]}
+            onChange={(v) => set({ style: v as CaveGenOptions['style'] })} />
+          {value.style !== 'cavern' && (
+            <NumberField label="Chambers" value={value.chambers} min={0} max={60}
+              suffix={value.chambers === 0 ? 'auto' : ''}
+              onChange={(v) => set({ chambers: Math.round(v) })} />
+          )}
+          {value.style === 'cavern' && (
+            <Slider label="Rock density" value={value.density} min={0.3} max={0.6} step={0.01}
+              onChange={(v) => set({ density: v })} />
+          )}
           <Slider label="Smoothing passes" value={value.smoothing} min={1} max={10} step={1}
             onChange={(v) => set({ smoothing: v })} />
           <NumberField label="Minimum pocket" value={value.minPocket} min={5} max={300} suffix="cells"

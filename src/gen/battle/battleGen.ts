@@ -318,11 +318,30 @@ function paintWater(doc: MapDocument, o: BattleGenOptions, recipe: BiomeRecipe, 
 
   const palette = paletteById(o.paletteId);
 
-  // Shallow rim first: the mask grown a little and tinted, so the deep water
+  // Bank first: a fringe of wet earth outside the water line. Without it a
+  // stream reads as a blue ribbon laid on top of the grass rather than a
+  // channel cut into it — the water has to disturb the ground it runs through.
+  const bank = createSurface(doc.width, doc.height);
+  const bankCtx = ctxOf(bank);
+  bankCtx.filter = `blur(${o.cell * 0.75}px)`;
+  bankCtx.drawImage(mask, 0, 0);
+  bankCtx.filter = 'none';
+  // Knock the interior back out, leaving only the ring of spread.
+  bankCtx.globalCompositeOperation = 'destination-out';
+  bankCtx.drawImage(mask, 0, 0);
+  bankCtx.globalCompositeOperation = 'source-in';
+  bankCtx.fillStyle = mix(palette.lowland, '#6a5334', 0.7);
+  bankCtx.fillRect(0, 0, doc.width, doc.height);
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.drawImage(bank, 0, 0);
+  ctx.restore();
+
+  // Shallow rim next: the mask grown a little and tinted, so the deep water
   // sits inside a band of wadeable shallows instead of stopping dead.
   const rim = createSurface(doc.width, doc.height);
   const rimCtx = ctxOf(rim);
-  rimCtx.filter = `blur(${o.cell * 0.35}px)`;
+  rimCtx.filter = `blur(${o.cell * 0.22}px)`;
   rimCtx.drawImage(mask, 0, 0);
   rimCtx.filter = 'none';
   rimCtx.globalCompositeOperation = 'source-in';
@@ -359,7 +378,7 @@ function paintElevation(doc: MapDocument, o: BattleGenOptions, rng: RNG): void {
   if (!shade) return;
   const ctx = ctxOf(shade.surface);
   const noise = new SimplexNoise(o.seed + 88);
-  const small = createSurface(Math.round(doc.width / 12), Math.round(doc.height / 12));
+  const small = createSurface(Math.round(doc.width / 8), Math.round(doc.height / 8));
   const sctx = ctxOf(small);
   const img = sctx.createImageData(small.width, small.height);
   for (let y = 0; y < small.height; y++) {
@@ -375,10 +394,20 @@ function paintElevation(doc: MapDocument, o: BattleGenOptions, rng: RNG): void {
     }
   }
   sctx.putImageData(img, 0, 0);
+
+  // Blur at the small resolution, then upscale. Blurring after a twelve-fold
+  // enlargement spreads the filter over half a source pixel, which leaves the
+  // bilinear facets intact — and an `overlay` blend then prints them onto the
+  // grass as a quilt of light and dark squares.
+  const soft = createSurface(small.width, small.height);
+  const softCtx = ctxOf(soft);
+  softCtx.filter = 'blur(1.4px)';
+  softCtx.drawImage(small, 0, 0);
+  softCtx.filter = 'none';
+
   ctx.imageSmoothingEnabled = true;
-  ctx.filter = 'blur(6px)';
-  ctx.drawImage(small, 0, 0, doc.width, doc.height);
-  ctx.filter = 'none';
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(soft, 0, 0, doc.width, doc.height);
   shade.blend = 'overlay';
   shade.opacity = 0.7;
 }

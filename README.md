@@ -17,11 +17,11 @@ repeats.
 
 | Generator | What you get |
 |---|---|
-| Region / World | Continents from a real heightmap: erosion, sea level, biomes by moisture and latitude, rivers traced by flow accumulation, settlements sited near water, political realms grown from the largest towns, and named ranges, forests and seas |
-| City / Settlement | A street network first, then blocks of buildings that face the street they sit on, curtain walls with towers and gates, castle, temple, market, docks, farmland and district labels |
-| Dungeon | BSP room partitioning, corridors, doors (including secret and locked ones), furnishings chosen to match each room's purpose, torchlight, numbered rooms and GM notes |
-| Cave | Cellular-automata caverns, pocket culling and tunnelling so everything connects, organic walls, pools, stalagmites, glowing crystals and fungal blooms |
-| Battle Map | Thirteen terrain recipes on a 5 ft grid, props clustered by a density field so you get groves and clearings, water, elevation shading, and blocking terrain wired up as walls |
+| Region / World | Continents from a real heightmap: erosion, a depression-filled drainage network with proper dendritic rivers, rainfall from a prevailing wind so deserts sit in rain shadows, settlements sited near water, political realms, roads routed over the terrain, and named ranges, forests and seas |
+| City / Settlement | A street network first, then terraces built along both frontages of every street, backland plots filling the block interiors, curtain walls with towers and gates, castle, temple, market, docks, farmland and district labels |
+| Dungeon | BSP room partitioning, corridors, doors (including secret and locked ones), furnishings chosen to match each room's purpose and set against the walls, torchlight, numbered rooms and GM notes |
+| Cave | Chambers and tunnels, a warren of small pockets, or one big cellular-automata cavern — your choice — with dead-end spurs, organic walls, pools, stalagmites, glowing crystals and fungal blooms |
+| Battle Map | Thirteen terrain recipes on a 5 ft grid, props clustered by a density field so you get groves and clearings, water with banks and shallows, elevation shading, and blocking terrain wired up as walls |
 
 **A real editor, not just a generator**
 
@@ -141,6 +141,18 @@ for (let i = 0; i < 20; i++) {
 // Inspect what a Foundry scene will contain before exporting.
 const { doc } = Aetheria.generate.dungeon({ seed: 42, rooms: 14 });
 console.log(Aetheria.build.foundryScene(doc).summary);
+```
+
+`Aetheria.debug` reports the numbers behind a world, which is how you catch the
+things a rendered map hides — a biome quietly eating a third of the landmass, a
+climate field that never leaves the middle of its range, a drainage network that
+has fragmented into puddles:
+
+```js
+Aetheria.debug.biomeStats(8);    // biome balance, averaged over eight seeds
+Aetheria.debug.biomeSpread(12);  // per-seed share, so you see the spread too
+Aetheria.debug.fieldStats(6);    // deciles of temperature, moisture, altitude
+Aetheria.debug.riverStats(31337) // flow profile and how many rivers survive
 ```
 
 ---

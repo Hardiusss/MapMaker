@@ -58,14 +58,25 @@ export const BATTLE_ASSETS: AssetDef[] = [
       groundShadow(ctx, cx + r * 0.16, cy + r * 0.18, r * 0.9, r * 0.9, 0.34);
       // Tiers get lighter towards the crown, so the tree reads as a cone from
       // directly above rather than a flat snowflake.
+      // Branches of uneven length and spacing. Alternating a fixed inner and
+      // outer radius around the circle produces a perfect cogwheel, and a
+      // forest of identical cogwheels is the first thing anyone notices about a
+      // generated battle map.
       for (let ring = 3; ring >= 0; ring--) {
         const rr = r * (0.34 + ring * 0.22);
-        const spikes = 9 + ring * 3;
+        const spikes = 8 + ring * 3 + rng.int(-1, 2);
+        const phase = rng.float(0, Math.PI * 2);
         const pts: Vec2[] = [];
-        for (let i = 0; i < spikes * 2; i++) {
-          const ang = (i / (spikes * 2)) * Math.PI * 2 + ring * 0.22;
-          const rad = i % 2 === 0 ? rr : rr * 0.7;
-          pts.push({ x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad });
+        for (let i = 0; i < spikes; i++) {
+          // Each branch tip and each notch between them gets its own radius
+          // and a little angular drift, so no two are the same length.
+          const a0 = (i / spikes) * Math.PI * 2 + phase;
+          const a1 = ((i + 0.5) / spikes) * Math.PI * 2 + phase;
+          const tip = rr * rng.float(0.86, 1.1);
+          const notch = rr * rng.float(0.6, 0.76);
+          const drift = rng.float(-0.06, 0.06);
+          pts.push({ x: cx + Math.cos(a0 + drift) * tip, y: cy + Math.sin(a0 + drift) * tip });
+          pts.push({ x: cx + Math.cos(a1) * notch, y: cy + Math.sin(a1) * notch });
         }
         fillPath(ctx, pts, mix(base, ring === 3 ? '#08150f' : '#a8cf72', ring === 3 ? 0.35 : (3 - ring) * 0.085));
       }
@@ -273,19 +284,36 @@ export const BATTLE_ASSETS: AssetDef[] = [
     draw(a) {
       const { ctx, w, h, rng } = a;
       const c = mix(a.palette.grass, '#7fa958', 0.4);
-      const n = rng.int(60, 110);
-      for (let i = 0; i < n; i++) {
-        const x = rng.float(0, w), y = rng.float(0, h);
-        const len = h * rng.float(0.08, 0.18);
-        const bend = rng.float(-w * 0.03, w * 0.03);
-        ctx.strokeStyle = rgba(mix(c, rng.bool() ? '#ffffff' : '#000000', rng.float(0, 0.3)), rng.float(0.5, 1));
-        ctx.lineWidth = Math.max(1, w * 0.007);
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(x + bend * 0.5, y - len * 0.6, x + bend, y - len);
-        ctx.stroke();
+
+      // A soft mass under the blades. Tall grass is difficult terrain and a GM
+      // needs to see where it starts; an even scatter of hairline strokes over
+      // bare ground is nearly invisible once the map is not at full zoom.
+      ctx.save();
+      const mass = blob(w / 2, h / 2, w * 0.44, h * 0.42, rng.int(6, 9), 0.2, rng);
+      fillPath(ctx, mass, rgba(mix(c, '#2c4a20', 0.45), 0.4));
+      tracePath(ctx, mass, true);
+      ctx.clip();
+
+      // Blades in tufts rather than uniformly spread, so the patch has body.
+      ctx.lineCap = 'round';
+      const tufts = rng.int(9, 15);
+      for (let t = 0; t < tufts; t++) {
+        const tx = rng.float(w * 0.1, w * 0.9), ty = rng.float(h * 0.15, h * 0.95);
+        const blades = rng.int(5, 9);
+        for (let i = 0; i < blades; i++) {
+          const x = tx + rng.float(-w * 0.06, w * 0.06);
+          const y = ty + rng.float(-h * 0.05, h * 0.05);
+          const len = h * rng.float(0.14, 0.3);
+          const bend = rng.float(-w * 0.05, w * 0.05);
+          ctx.strokeStyle = rgba(mix(c, rng.bool(0.4) ? '#dbe98a' : '#16301a', rng.float(0.05, 0.4)), rng.float(0.65, 1));
+          ctx.lineWidth = Math.max(1.4, w * 0.012);
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.quadraticCurveTo(x + bend * 0.5, y - len * 0.6, x + bend, y - len);
+          ctx.stroke();
+        }
       }
+      ctx.restore();
     },
   },
   {
@@ -294,7 +322,36 @@ export const BATTLE_ASSETS: AssetDef[] = [
     draw(a) {
       const { ctx, w, h, rng } = a;
       const c = '#6e1410';
-      const main = blob(w / 2, h / 2, w * 0.22, h * 0.2, rng.int(5, 8), 0.3, rng);
+      const cx = w / 2, cy = h / 2;
+
+      // Cast-off streaks first, so the pool sits on top of their roots. Blood
+      // thrown from a weapon lands as elongated teardrops pointing away from
+      // the impact — without them the pool is just a shape.
+      for (let i = 0; i < rng.int(3, 6); i++) {
+        const ang = rng.float(0, Math.PI * 2);
+        const len = w * rng.float(0.08, 0.2);
+        const wid = w * rng.float(0.01, 0.022);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(ang);
+        ctx.fillStyle = rgba(c, rng.float(0.5, 0.8));
+        ctx.beginPath();
+        ctx.moveTo(w * 0.19, -wid);
+        ctx.quadraticCurveTo(w * 0.19 + len * 0.6, -wid * 0.5, w * 0.19 + len, 0);
+        ctx.quadraticCurveTo(w * 0.19 + len * 0.6, wid * 0.5, w * 0.19, wid);
+        ctx.closePath();
+        ctx.fill();
+        // The droplet that broke off the end of the streak.
+        ctx.beginPath();
+        ctx.arc(w * 0.19 + len + wid * 1.8, 0, wid * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Enough points that the pool reads as an irregular puddle. Five points
+      // at this wobble is a cartoon star, which is not the note anyone wants a
+      // blood pool to hit.
+      const main = blob(cx, cy, w * 0.22, h * 0.2, rng.int(12, 18), 0.11, rng);
       fillPath(ctx, main, rgba(c, 0.85));
       for (let i = 0; i < rng.int(14, 26); i++) {
         const ang = rng.float(0, Math.PI * 2);

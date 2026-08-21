@@ -64,6 +64,9 @@ for (const size of ['village', 'town', 'city']) {
     jobs.push([`city-${size}-${plan}`, { kind: 'city', opts: { seed: 12, size, plan } }]);
   }
 }
+for (const style of ['chambers', 'warren', 'cavern']) {
+  jobs.push([`cave-${style}`, { kind: 'cave', opts: { seed: 13, style } }]);
+}
 for (const paletteId of ['atlas', 'verdant', 'frostmark', 'ashen', 'ink']) {
   jobs.push([`palette-${paletteId}`, { kind: 'region', opts: { seed: 909, paletteId, width: 1800, height: 1200 } }]);
 }
