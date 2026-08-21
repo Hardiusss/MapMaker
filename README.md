@@ -1,8 +1,8 @@
 # Aetheria Cartographer
 
-An offline, self-contained fantasy map editor for tabletop RPGs — regional maps,
-cities, dungeons, caves and battle maps — with first-class export to Foundry VTT
-and the Universal VTT format.
+An offline, self-contained fantasy map editor for tabletop RPGs — world maps,
+theatres of operations, cities, dungeons, caves and battle maps — with
+first-class export to Foundry VTT and the Universal VTT format.
 
 It is a desktop application. No account, no subscription, no network calls, and
 no bundled art library: every texture, mountain, tree, building and dungeon prop
@@ -13,7 +13,7 @@ repeats.
 
 ## What it does
 
-**Five generators, all seeded and re-rollable**
+**Six generators, all seeded and re-rollable**
 
 | Generator | What you get |
 |---|---|

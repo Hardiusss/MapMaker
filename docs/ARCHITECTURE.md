@@ -153,7 +153,7 @@ resolution** and only then drawn up to full size.
 
 ## The generators
 
-All five follow the same shape: build a field or a grid, resolve it to pixels,
+All six follow the same shape: build a field or a grid, resolve it to pixels,
 then place objects on top. Everything is seeded from a single integer.
 
 ### Region
