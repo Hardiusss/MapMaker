@@ -351,10 +351,15 @@ def({
       { t: 0.5, color: p.desert },
       { t: 1, color: mix(p.desert, '#fff3d0', 0.7) },
     ]);
+    const grain = new TileableNoise(72, rng.int(1, 1e6));
     px.each((u, v) => {
-      const ripple = Math.sin((u * 6 + dune.fbm(u * 6, v * 6, 3) * 3) * Math.PI * 2) * 0.12;
-      const base = n.fbm(u * 18, v * 18, 3) * 0.35 + 0.5;
-      const c = r(clamp01(base + ripple));
+      // Beach and shore sand: wind ripples are centimetres apart in reality,
+      // so at map scale this should read as grain and damp patches, not as the
+      // metre-high ridges that belong to the deep desert tile next door.
+      const ripple = Math.sin((u * 14 + dune.fbm(u * 6, v * 6, 3) * 4) * Math.PI * 2) * 0.05;
+      const base = n.fbm(u * 18, v * 18, 4) * 0.3 + 0.5;
+      const speck = grain.noise(u * 72, v * 72) * 0.07;
+      const c = r(clamp01(base + ripple + speck));
       return [c[0], c[1], c[2], 255];
     });
   },
@@ -364,16 +369,31 @@ def({
   id: 'dunes', label: 'Deep Desert', group: 'ground', scale: 2,
   make(px, p, rng) {
     const n = new TileableNoise(4, rng.int(1, 1e6));
-    const fine = new TileableNoise(40, rng.int(1, 1e6));
+    const patchy = new TileableNoise(7, rng.int(1, 1e6));
+    const fine = new TileableNoise(56, rng.int(1, 1e6));
+    // Dunes are asymmetric: a long windward slope and a short steep slip face
+    // with a shadow at its foot. The old symmetric sine at high contrast tiled
+    // into something that read as a fingerprint across the whole desert once
+    // you zoomed out far enough to see nine copies of the tile at once.
     const r = ramp([
-      { t: 0, color: mix(p.desert, '#7a5c31', 0.55) },
-      { t: 0.45, color: p.desert },
-      { t: 1, color: mix(p.desert, '#fff0c8', 0.75) },
+      { t: 0, color: mix(p.desert, '#8a6636', 0.5) },
+      { t: 0.38, color: mix(p.desert, '#000000', 0.08) },
+      { t: 0.7, color: p.desert },
+      { t: 1, color: mix(p.desert, '#fff0c8', 0.55) },
     ]);
     px.each((u, v) => {
       const flow = n.fbm(u * 4, v * 4, 4);
-      const crest = Math.sin((v * 5 + flow * 4) * Math.PI * 2);
-      const base = 0.5 + crest * 0.28 + fine.noise(u * 40, v * 40) * 0.06;
+      // `flow` is signed, and JS's % keeps the sign — a negative phase would
+      // make Math.pow return NaN and punch black holes through the texture.
+      const phase = (((v * 3 + flow * 3) % 1) + 1) % 1;
+      // Sawtooth ramp up, sharp drop, then a shadow trough after the crest.
+      const windward = Math.pow(phase, 0.8);
+      const slip = smoothstep(0.86, 1, phase);
+      const shadow = smoothstep(1, 0.92, phase) * smoothstep(0.86, 0.94, phase);
+      // Not all desert is dune field: fade the ridges out over open sand flats.
+      const field = smoothstep(0.35, 0.72, patchy.fbm(u * 7, v * 7, 3) * 0.5 + 0.5);
+      const ridge = (windward * 0.5 - slip * 0.3 - shadow * 0.34) * (0.35 + field * 0.65);
+      const base = 0.46 + ridge + fine.noise(u * 56, v * 56) * 0.05;
       const c = r(clamp01(base));
       return [c[0], c[1], c[2], 255];
     });
@@ -383,15 +403,26 @@ def({
 def({
   id: 'snow', label: 'Snowfield', group: 'ground', scale: 1,
   make(px, p, rng) {
-    const n = new TileableNoise(12, rng.int(1, 1e6));
+    const n = new TileableNoise(9, rng.int(1, 1e6));
+    const drift = new TileableNoise(20, rng.int(1, 1e6));
+    const grain = new TileableNoise(64, rng.int(1, 1e6));
+    // Snow, not paper. The old ramp spent most of its range at pure white, so a
+    // snowfield rendered as a flat cut-out shape with a hard edge — which on a
+    // map full of textured ground is the one thing that looks unfinished.
+    // Wind-scoured drifts and blue shadow in the hollows give it a surface.
     const r = ramp([
-      { t: 0, color: mix(p.snow, '#8fa6bd', 0.4) },
-      { t: 0.5, color: mix(p.snow, '#dbe6f0', 0.5) },
+      { t: 0, color: mix(p.snow, '#6f89a8', 0.5) },
+      { t: 0.32, color: mix(p.snow, '#9fb4cb', 0.45) },
+      { t: 0.6, color: mix(p.snow, '#dde8f2', 0.55) },
+      { t: 0.86, color: mix(p.snow, '#ffffff', 0.7) },
       { t: 1, color: '#ffffff' },
     ]);
     px.each((u, v) => {
-      const base = n.fbm(u * 12, v * 12, 4) * 0.5 + 0.5;
-      const c = r(clamp01(base * 0.6 + 0.35));
+      const base = n.fbm(u * 9, v * 9, 4) * 0.5 + 0.5;
+      // Sastrugi: wind-carved ridges, elongated along one axis.
+      const ridges = 1 - Math.abs(drift.fbm(u * 20, v * 7, 4));
+      const speck = grain.noise(u * 64, v * 64) * 0.06;
+      const c = r(clamp01(base * 0.5 + ridges * 0.42 + speck));
       return [c[0], c[1], c[2], 255];
     });
   },

@@ -221,7 +221,7 @@ function paintBiomes(doc: MapDocument, f: Fields, biomes: Uint8Array, o: RegionG
   const shoreInkG = shoreInkPx / scaleX;
   const shelfG = shelfPx / scaleX;
 
-  const { elevation, moisture, temperature, distanceToWater, seaLevel } = f;
+  const { elevation, moisture, temperature, distanceToWater, distanceToLand, seaLevel } = f;
   const span = Math.max(0.05, 1 - seaLevel);
 
   /** Bilinear sample of a grid field at fractional grid coordinates. */
@@ -237,14 +237,6 @@ function paintBiomes(doc: MapDocument, f: Fields, biomes: Uint8Array, o: RegionG
     return (a + (b - a) * fx) + ((c + (d - c) * fx) - (a + (b - a) * fx)) * fy;
   };
 
-  // The shore probes only need a yes/no a few pixels away, so a nearest-cell
-  // lookup is plenty — and four bilinear samples per pixel is not.
-  const water = f.water;
-  const isWaterAt = (gx: number, gy: number): boolean => {
-    const ix = gx < 0 ? 0 : gx > gw - 1 ? gw - 1 : gx | 0;
-    const iy = gy < 0 ? 0 : gy > gh - 1 ? gh - 1 : gy | 0;
-    return water[iy * gw + ix] === 1;
-  };
 
   for (let y = 0; y < H; y++) {
     const wy = ((y * wh / H) | 0) * ww;
@@ -271,24 +263,26 @@ function paintBiomes(doc: MapDocument, f: Fields, biomes: Uint8Array, o: RegionG
       const di = (y * W + x) * 4;
 
       if (isWater) {
-        const nearLand =
-          !isWaterAt(gx + shelfG, gy) || !isWaterAt(gx - shelfG, gy) ||
-          !isWaterAt(gx, gy + shelfG) || !isWaterAt(gx, gy - shelfG);
-        if (nearLand) {
-          r += (shelf.r - r) * 0.42;
-          g += (shelf.g - g) * 0.42;
-          bl += (shelf.b - bl) * 0.42;
+        // Continental shelf: a graded band whose width is measured from the
+        // shore, so it follows every inlet instead of stepping around it.
+        const dl = sample(distanceToLand, gx, gy);
+        const shelfAmt = (1 - smoothstep(0, shelfG, dl)) * 0.46;
+        if (shelfAmt > 0.002) {
+          r += (shelf.r - r) * shelfAmt;
+          g += (shelf.g - g) * shelfAmt;
+          bl += (shelf.b - bl) * shelfAmt;
         }
         bd[di] = r; bd[di + 1] = g; bd[di + 2] = bl; bd[di + 3] = 255;
         td[di + 3] = 0;
       } else {
-        const nearWater =
-          isWaterAt(gx + shoreInkG, gy) || isWaterAt(gx - shoreInkG, gy) ||
-          isWaterAt(gx, gy + shoreInkG) || isWaterAt(gx, gy - shoreInkG);
-        if (nearWater) {
-          r += (ink.r - r) * 0.72;
-          g += (ink.g - g) * 0.72;
-          bl += (ink.b - bl) * 0.72;
+        // Shore ink: the pen line a cartographer draws along the coast. Fading
+        // it over the last fraction of a cell antialiases the line for free.
+        const dwShore = sample(distanceToWater, gx, gy);
+        const inkAmt = (1 - smoothstep(shoreInkG * 0.35, shoreInkG * 1.35, dwShore)) * 0.78;
+        if (inkAmt > 0.002) {
+          r += (ink.r - r) * inkAmt;
+          g += (ink.g - g) * inkAmt;
+          bl += (ink.b - bl) * inkAmt;
         }
         td[di] = r; td[di + 1] = g; td[di + 2] = bl; td[di + 3] = 255;
         bd[di + 3] = 0;

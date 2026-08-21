@@ -36,6 +36,8 @@ export interface Fields {
   flow: Float32Array;        // flow accumulation
   seaLevel: number;
   distanceToWater: Float32Array;
+  /** Distance from each sea cell to the nearest land cell, in grid cells. */
+  distanceToLand: Float32Array;
 }
 
 export const DEFAULT_FIELD_OPTIONS: FieldOptions = {
@@ -86,6 +88,11 @@ export function generateFields(opts: Partial<FieldOptions> = {}): Fields {
   for (let i = 0; i < elevation.length; i++) water[i] = elevation[i] < seaLevel ? 1 : 0;
   fillInlandLakes(elevation, water, w, h, seaLevel);
   const distanceToWater = distanceField(water, w, h);
+  // The mirror image: how far a sea cell is from the nearest land. The
+  // continental shelf and the surf line are drawn from this, and reading it
+  // bilinearly is what keeps them off the grid — probing the water mask cell
+  // by cell quantises the shelf into visible rectangles a dozen pixels across.
+  const distanceToLand = distanceField(water, w, h, 0);
 
   // --- Hydrology -----------------------------------------------------------
   const flow = computeFlow(elevation, water, w, h);
@@ -116,7 +123,7 @@ export function generateFields(opts: Partial<FieldOptions> = {}): Fields {
 
   const moisture = rainfall(elevation, water, flow, distanceToWater, w, h, seaLevel, o, rng, moist);
 
-  return { w, h, elevation, moisture, temperature, water, flow, seaLevel, distanceToWater };
+  return { w, h, elevation, moisture, temperature, water, flow, seaLevel, distanceToWater, distanceToLand };
 }
 
 // ---------------------------------------------------------------------------
@@ -371,9 +378,13 @@ function fillInlandLakes(e: Float32Array, water: Uint8Array, w: number, h: numbe
 }
 
 /** Chamfer distance transform from water cells. */
-function distanceField(water: Uint8Array, w: number, h: number): Float32Array {
+/**
+ * Chamfer distance, in grid cells, from every cell to the nearest cell where
+ * `mask` matches `seedValue`.
+ */
+function distanceField(water: Uint8Array, w: number, h: number, seedValue = 1): Float32Array {
   const d = new Float32Array(w * h).fill(1e9);
-  for (let i = 0; i < water.length; i++) if (water[i]) d[i] = 0;
+  for (let i = 0; i < water.length; i++) if (water[i] === seedValue) d[i] = 0;
   const put = (i: number, v: number) => { if (v < d[i]) d[i] = v; };
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {

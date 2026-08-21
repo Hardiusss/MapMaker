@@ -82,7 +82,10 @@ export function classifyValues(
   if (alt > 0.62) return 'mountain';
   if (alt > 0.46) return t < 0.10 ? 'snow' : 'highland';
 
-  if (distToWater <= 1.6 && alt < 0.08) return 'beach';
+  // Golden sand stops at the treeline too. A polar shore is frozen gravel, and
+  // running the tropical beach rule up to the ice cap puts a bright yellow
+  // ribbon between the snowfield and the sea.
+  if (distToWater <= 1.6 && alt < 0.08) return t < 0.22 ? 'tundra' : 'beach';
   if (alt < 0.12 && m > 0.68 && t > 0.3) return 'swamp';
 
   if (t < 0.09) return 'snow';

@@ -121,6 +121,26 @@ export function installApi(editor: Editor): void {
         return { temperature: deciles(t), moisture: deciles(m), altitude: deciles(a), landCells: t.length };
       },
 
+      /** Per-seed share of each biome, so tuning can see the spread not just the mean. */
+      biomeSpread(seeds = 12, keys = ['desert', 'jungle', 'snow', 'grassland', 'forest'], opts: Record<string, unknown> = {}) {
+        const rows: Record<string, number[]> = {};
+        for (const k of keys) rows[k] = [];
+        for (let s = 0; s < seeds; s++) {
+          const f = generateFields({ seed: 100 + s, ...opts });
+          const b = classify(f);
+          const tally: Record<string, number> = {};
+          let land = 0;
+          for (let i = 0; i < b.length; i++) {
+            if (f.water[i]) continue;
+            land++;
+            const name = BIOME_ORDER[b[i]];
+            tally[name] = (tally[name] || 0) + 1;
+          }
+          for (const k of keys) rows[k].push(+((tally[k] || 0) / land * 100).toFixed(1));
+        }
+        return rows;
+      },
+
       biomeStats(seeds = 6, opts: Record<string, unknown> = {}) {
         const tally: Record<string, number> = {};
         let land = 0, total = 0;
