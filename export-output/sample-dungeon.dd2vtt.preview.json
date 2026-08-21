@@ -1222,8 +1222,8 @@
   "lights": [
     {
       "position": {
-        "x": 4.0384,
-        "y": 5.0284
+        "x": 6.356,
+        "y": 4.7796
       },
       "range": 8,
       "intensity": 0.85,
@@ -1232,8 +1232,8 @@
     },
     {
       "position": {
-        "x": 14.0962,
-        "y": 4.8802
+        "x": 7.2891,
+        "y": 4.3017
       },
       "range": 8,
       "intensity": 0.85,
@@ -1242,8 +1242,8 @@
     },
     {
       "position": {
-        "x": 25.094,
-        "y": 5.7226
+        "x": 14.9049,
+        "y": 3.1094
       },
       "range": 8,
       "intensity": 0.85,
@@ -1252,38 +1252,8 @@
     },
     {
       "position": {
-        "x": 33.4866,
-        "y": 5.2763
-      },
-      "range": 8,
-      "intensity": 0.85,
-      "color": "ffae5cff",
-      "shadows": true
-    },
-    {
-      "position": {
-        "x": 11.6753,
-        "y": 15.0269
-      },
-      "range": 4,
-      "intensity": 0.85,
-      "color": "7ac8ffff",
-      "shadows": true
-    },
-    {
-      "position": {
-        "x": 17.7628,
-        "y": 14.5419
-      },
-      "range": 8,
-      "intensity": 0.85,
-      "color": "ffae5cff",
-      "shadows": true
-    },
-    {
-      "position": {
-        "x": 23.1595,
-        "y": 16.9794
+        "x": 15.3429,
+        "y": 4.1191
       },
       "range": 10,
       "intensity": 0.85,
@@ -1292,18 +1262,8 @@
     },
     {
       "position": {
-        "x": 34.1314,
-        "y": 12.8806
-      },
-      "range": 10,
-      "intensity": 0.85,
-      "color": "ff9a4aff",
-      "shadows": true
-    },
-    {
-      "position": {
-        "x": 33.1578,
-        "y": 12.9731
+        "x": 24.7181,
+        "y": 5.1711
       },
       "range": 8,
       "intensity": 0.85,
@@ -1312,18 +1272,8 @@
     },
     {
       "position": {
-        "x": 5.0351,
-        "y": 22.2207
-      },
-      "range": 10,
-      "intensity": 0.85,
-      "color": "ff9a4aff",
-      "shadows": true
-    },
-    {
-      "position": {
-        "x": 14.3537,
-        "y": 25.9421
+        "x": 35.7489,
+        "y": 3.4792
       },
       "range": 8,
       "intensity": 0.85,
@@ -1332,8 +1282,28 @@
     },
     {
       "position": {
-        "x": 21.6621,
-        "y": 22.2242
+        "x": 33.3952,
+        "y": 3.4377
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 11.217,
+        "y": 16.3653
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 12.7284,
+        "y": 13.2613
       },
       "range": 10,
       "intensity": 0.85,
@@ -1342,14 +1312,294 @@
     },
     {
       "position": {
-        "x": 35.7691,
-        "y": 26.1448
+        "x": 17.5303,
+        "y": 15.0886
+      },
+      "range": 10,
+      "intensity": 0.85,
+      "color": "ff9a4aff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 23.0219,
+        "y": 15.6471
       },
       "range": 8,
       "intensity": 0.85,
       "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 23.6891,
+        "y": 16.2994
+      },
+      "range": 10,
+      "intensity": 0.85,
+      "color": "ff9a4aff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 32.0689,
+        "y": 16.6275
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 33.1978,
+        "y": 15.2655
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 34.7764,
+        "y": 12.1844
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 4.0924,
+        "y": 24.1583
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 6.5606,
+        "y": 23.3571
+      },
+      "range": 10,
+      "intensity": 0.85,
+      "color": "ff9a4aff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 13.8585,
+        "y": 25.3963
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 13.7485,
+        "y": 25.4031
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 20.9634,
+        "y": 22.1044
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 29.7993,
+        "y": 23.6944
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 35.1696,
+        "y": 26.0777
+      },
+      "range": 8,
+      "intensity": 0.85,
+      "color": "ffae5cff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 12.5,
+        "y": 4.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 21.5,
+        "y": 4.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 29.5,
+        "y": 4.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 34.5,
+        "y": 7.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 6.5,
+        "y": 8.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 15.5,
+        "y": 8.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 29.5,
+        "y": 11.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 7.5,
+        "y": 14.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 20.5,
+        "y": 14.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 15.5,
+        "y": 16.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 29.5,
+        "y": 18.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 5.5,
+        "y": 19.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 8.5,
+        "y": 23.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 15.5,
+        "y": 23.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 23.5,
+        "y": 23.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
+      "shadows": true
+    },
+    {
+      "position": {
+        "x": 28.5,
+        "y": 25.5
+      },
+      "range": 4.8,
+      "intensity": 0.6,
+      "color": "ffb066ff",
       "shadows": true
     }
   ],
-  "image": "iVBORw0KGgoAAAANSUhEUgAABXgAAAQaCAYAAAD5…(1982056 chars)"
+  "image": "iVBORw0KGgoAAAANSUhEUgAABXgAAAQaCAYAAAD5…(1990404 chars)"
 }

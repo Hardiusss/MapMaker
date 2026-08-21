@@ -108,12 +108,19 @@ export function defaultLayers(kind: MapKind, w: number, h: number): Layer[] {
         makeRasterLayer('Floor', w, h, 'floor'),
         makeRasterLayer('Wall Faces', w, h, 'walls-art'),
         makeRasterLayer('Shadow & Depth', w, h, 'relief'),
+        makeObjectLayer('Terrain Features', 'features'),
         makeObjectLayer('Furnishings', 'features'),
         makeObjectLayer('Doors & Stairs', 'features'),
-        makeObjectLayer('Labels', 'labels'),
+        // Traps are the GM's business. They ride above the darkness because a
+        // GM map is a working document: a pit trap you cannot see in an unlit
+        // corridor is a pit trap you will forget to spring.
+        { ...makeObjectLayer('Hazards', 'gm'), gmOnly: true, aboveLighting: true },
+        // The key sits on top of the darkness: room numbers a GM cannot read in
+        // the unlit half of the dungeon are not a key.
+        { ...makeObjectLayer('Labels', 'labels'), aboveLighting: true },
         makeWallLayer(),
         makeLightLayer(),
-        makeNoteLayer(),
+        { ...makeNoteLayer(), aboveLighting: true },
       ];
     case 'battle':
       return [

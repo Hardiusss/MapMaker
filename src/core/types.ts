@@ -327,6 +327,15 @@ export interface LayerBase {
    * dialog's player/GM switch — secret annotations, tokens, keyed room numbers.
    */
   gmOnly?: boolean;
+  /**
+   * Draw this layer after the darkness pass rather than before it.
+   *
+   * A dungeon lit by torchlight is mostly dark, which is the point — but the
+   * room numbers and the GM's notes are annotations *on* the map, not objects
+   * *in* it, and a key you cannot read in the unlit half of the dungeon is no
+   * key at all.
+   */
+  aboveLighting?: boolean;
 }
 
 export type LayerRole =

@@ -275,8 +275,9 @@ export function generateDungeon(opts: Partial<DungeonGenOptions> = {}): DungeonR
   if (wl && wl.kind === 'wall') wl.walls = walls;
 
   if (o.doors) drawDoors(doc, doors, o);
+  addDungeonFeatures(doc, g, rooms, o, rng);
   if (o.furnish) furnishRooms(doc, rooms, o, rng);
-  if (o.lights) lightRooms(doc, rooms, o, rng);
+  if (o.lights) lightRooms(doc, g, rooms, o, rng);
   if (o.labels) {
     labelRooms(doc, rooms, o, rng);
     layoutLabels(doc, { padding: o.cell * 0.08, minorSizeBelow: o.cell * 0.4 });
@@ -551,6 +552,133 @@ const AGAINST_WALL = new Set([
   'dgn/rubble', 'dgn/bones',
 ]);
 
+/**
+ * The things that make a dungeon a place rather than a floor plan: pillars
+ * holding up the big halls, collapsed masonry, a flooded chamber, a chasm cut
+ * across a corridor, and the traps the GM is going to spring.
+ *
+ * The physical features go on the ordinary feature layer, so torchlight falls
+ * on them like anything else. The trap markers go on a GM-only layer above the
+ * darkness — they are annotations about the world, not objects in it, and a
+ * spike pit a GM cannot see in an unlit corridor is one they will forget.
+ */
+function addDungeonFeatures(
+  doc: MapDocument, g: CellGrid, rooms: Room[], o: DungeonGenOptions, rng: RNG,
+): void {
+  const terrain = doc.layers.find((l) => l.kind === 'object' && l.name === 'Terrain Features')
+    || objectLayerByRole(doc, 'features');
+  const hazards = doc.layers.find((l) => l.kind === 'object' && l.name === 'Hazards');
+  if (!terrain || terrain.kind !== 'object') return;
+
+  const cell = o.cell;
+  const px = (c: number) => (c + 0.5) * cell;
+
+  // --- Pillars -------------------------------------------------------------
+  // A hall more than five squares across needs something holding the roof up,
+  // and a colonnade is the cheapest way to make a big empty room interesting to
+  // fight in: it breaks line of sight and gives cover.
+  for (const room of rooms) {
+    if (room.shape !== 'rect' || room.w < 6 || room.h < 5) continue;
+    if (rng.bool(0.45)) continue;
+    const inset = 1;
+    const step = room.w >= 9 ? 3 : 2;
+    for (let x = room.x + inset; x < room.x + room.w - inset; x += step) {
+      for (const y of [room.y + inset, room.y + room.h - 1 - inset]) {
+        if (y <= room.y || y >= room.y + room.h - 1) continue;
+        terrain.objects.push(makeStamp('dgn/pillar', px(x), px(y), cell * 0.8, cell * 0.8, {
+          seed: rng.int(1, 1e6),
+          shadow: { color: 'rgba(0,0,0,0.55)', blur: cell * 0.2, dx: cell * 0.06, dy: cell * 0.09 },
+          name: 'Pillar',
+        }));
+      }
+    }
+  }
+
+  // --- Rubble --------------------------------------------------------------
+  // Collapsed masonry, mostly along the walls where a ceiling comes down first.
+  const openCells: number[] = [];
+  for (let i = 0; i < g.open.length; i++) if (g.open[i]) openCells.push(i);
+  rng.shuffle(openCells);
+  const rubble = Math.round(openCells.length * 0.045);
+  for (let k = 0; k < rubble && k < openCells.length; k++) {
+    const i = openCells[k];
+    const cx = i % g.cols, cy = Math.floor(i / g.cols);
+    terrain.objects.push(makeStampAuto('dgn/rubble', px(cx) + rng.float(-0.2, 0.2) * cell, px(cy) + rng.float(-0.2, 0.2) * cell,
+      cell * rng.float(0.7, 1.3), {
+        seed: rng.int(1, 1e6),
+        rotation: rng.float(0, 360),
+        opacity: rng.float(0.75, 1),
+        name: 'Rubble',
+      }));
+  }
+
+  // --- A flooded chamber ---------------------------------------------------
+  // Water in a dungeon is difficult terrain, a hiding place and a reason for
+  // the party to argue, so it is worth having exactly one of.
+  const floodable = rooms.filter((r) => r.w * r.h >= 12);
+  if (floodable.length && rng.bool(0.7)) {
+    const room = rng.pick(floodable);
+    const pools = Math.max(2, Math.round(room.w * room.h / 9));
+    for (let k = 0; k < pools; k++) {
+      const x = room.x + rng.float(0.6, room.w - 0.6);
+      const y = room.y + rng.float(0.6, room.h - 0.6);
+      terrain.objects.push(makeStampAuto('dgn/water-pool', px(x - 0.5), px(y - 0.5),
+        cell * rng.float(1.4, 2.6), {
+          seed: rng.int(1, 1e6),
+          rotation: rng.float(0, 360),
+          opacity: 0.88,
+          name: 'Standing water',
+        }));
+    }
+  }
+
+  // --- A chasm across a corridor -------------------------------------------
+  // Cut somewhere the party has to deal with it rather than walk around.
+  const corridorCells = openCells.filter((i) => g.corridor[i]);
+  if (corridorCells.length > 20 && rng.bool(0.6)) {
+    const start = corridorCells[rng.int(0, corridorCells.length - 1)];
+    const cx = start % g.cols, cy = Math.floor(start / g.cols);
+    const span = rng.int(2, 4);
+    const horizontal = rng.bool();
+    for (let k = 0; k < span; k++) {
+      const x = horizontal ? cx + k : cx;
+      const y = horizontal ? cy : cy + k;
+      if (x < 0 || y < 0 || x >= g.cols || y >= g.rows) break;
+      if (!g.open[at(g, x, y)]) break;
+      terrain.objects.push(makeStampAuto('dgn/pit', px(x), px(y), cell * 1.25, {
+        seed: rng.int(1, 1e6),
+        rotation: rng.float(0, 360),
+        name: 'Chasm',
+      }));
+    }
+  }
+
+  // --- Traps ---------------------------------------------------------------
+  if (!hazards || hazards.kind !== 'object') return;
+  const trapAssets = ['dgn/spike-trap', 'dgn/trapdoor', 'dgn/pit'];
+  // Traps belong where the party has no choice: corridors and doorways, plus
+  // the odd treasure room. Scattering them uniformly makes them a tax rather
+  // than a decision.
+  const candidates = openCells.filter((i) => g.corridor[i]);
+  rng.shuffle(candidates);
+  const trapCount = Math.min(candidates.length, Math.max(2, Math.round(rooms.length * 0.4)));
+  const used: Vec2[] = [];
+  for (let k = 0, placed = 0; k < candidates.length && placed < trapCount; k++) {
+    const i = candidates[k];
+    const cx = i % g.cols, cy = Math.floor(i / g.cols);
+    if (used.some((u) => Math.abs(u.x - cx) + Math.abs(u.y - cy) < 5)) continue;
+    used.push({ x: cx, y: cy });
+    placed++;
+    const asset = rng.pick(trapAssets);
+    hazards.objects.push(makeStampAuto(asset, px(cx), px(cy), cell * 1.05, {
+      seed: rng.int(1, 1e6),
+      opacity: 0.9,
+      name: asset === 'dgn/spike-trap' ? 'Spike trap'
+        : asset === 'dgn/trapdoor' ? 'Concealed trapdoor' : 'Covered pit',
+    }));
+  }
+}
+
 function furnishRooms(doc: MapDocument, rooms: Room[], o: DungeonGenOptions, rng: RNG): void {
   const layer = objectLayerByRole(doc, 'features');
   const doorLayer = doc.layers.find((l) => l.kind === 'object' && l.name === 'Doors & Stairs');
@@ -618,28 +746,63 @@ function furnishRooms(doc: MapDocument, rooms: Room[], o: DungeonGenOptions, rng
   }
 }
 
-function lightRooms(doc: MapDocument, rooms: Room[], o: DungeonGenOptions, rng: RNG): void {
+/**
+ * Torches, braziers and the odd arcane glow.
+ *
+ * The light matters more here than it does on a daylit map, because with wall
+ * occlusion the unlit parts of a dungeon are genuinely black. A few dark rooms
+ * are atmosphere; a dungeon where the corridors are also unlit is a page the GM
+ * cannot read. So the passages get wall sconces at intervals, and only a small
+ * minority of rooms are left dark on purpose.
+ */
+function lightRooms(doc: MapDocument, g: CellGrid, rooms: Room[], o: DungeonGenOptions, rng: RNG): void {
   const layer = doc.layers.find((l) => l.kind === 'light');
   if (!layer || layer.kind !== 'light') return;
   const unitPx = o.cell / 5; // 5 ft per cell
 
+  const PRESETS: [{ b: number; d: number; c: string; a: 'torch' | 'flame' | 'pulse'; n: string }, number][] = [
+    [{ b: 20, d: 40, c: '#ffae5c', a: 'torch', n: 'Torch' }, 6],
+    [{ b: 25, d: 50, c: '#ff9a4a', a: 'flame', n: 'Brazier' }, 3],
+    [{ b: 10, d: 22, c: '#7ac8ff', a: 'pulse', n: 'Arcane Glow' }, 1],
+  ];
+
   for (const room of rooms) {
-    if (rng.bool(0.28)) continue; // some rooms stay dark
-    const n = room.w * room.h > 40 ? 2 : 1;
+    if (rng.bool(0.14)) continue; // a few rooms stay dark on purpose
+    const area = room.w * room.h;
+    const n = area > 40 ? 3 : area > 18 ? 2 : 1;
     for (let i = 0; i < n; i++) {
       const x = (room.x + rng.float(1, room.w - 1)) * o.cell;
       const y = (room.y + rng.float(1, room.h - 1)) * o.cell;
-      const preset = rng.pickWeighted([
-        [{ b: 20, d: 40, c: '#ffae5c', a: 'torch' as const, n: 'Torch' }, 6],
-        [{ b: 25, d: 50, c: '#ff9a4a', a: 'flame' as const, n: 'Brazier' }, 3],
-        [{ b: 10, d: 20, c: '#7ac8ff', a: 'pulse' as const, n: 'Arcane Glow' }, 1],
-      ]);
+      const preset = rng.pickWeighted(PRESETS);
       layer.lights.push(makeLight(x, y, o.cell, {
         bright: preset.b * unitPx,
         dim: preset.d * unitPx,
         color: preset.c,
         animation: preset.a,
         name: preset.n,
+      }));
+    }
+  }
+
+  // --- Corridor sconces ----------------------------------------------------
+  // Spaced along the passages rather than scattered, which is both how a
+  // building is actually lit and what keeps the gaps between pools even.
+  const spacing = 7;
+  const lit: Vec2[] = [];
+  for (let y = 0; y < g.rows; y++) {
+    for (let x = 0; x < g.cols; x++) {
+      const i = at(g, x, y);
+      if (!g.open[i] || !g.corridor[i]) continue;
+      if (lit.some((p) => Math.abs(p.x - x) + Math.abs(p.y - y) < spacing)) continue;
+      if (rng.bool(0.25)) continue;   // not every junction gets one
+      lit.push({ x, y });
+      layer.lights.push(makeLight((x + 0.5) * o.cell, (y + 0.5) * o.cell, o.cell, {
+        bright: 11 * unitPx,
+        dim: 24 * unitPx,
+        color: '#ffb066',
+        intensity: 0.6,
+        animation: 'torch',
+        name: 'Wall sconce',
       }));
     }
   }

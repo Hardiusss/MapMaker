@@ -6,7 +6,7 @@
  * exporters call it with a plain scale. One code path, so what you export is
  * exactly what you saw.
  */
-import type { MapDocument, Layer, ObjectLayer, Selection, Rect, Wall, LightSource, MapNote } from '../core/types';
+import type { MapDocument, Layer, ObjectLayer, Selection, Rect, Wall, LightSource, MapNote, Vec2 } from '../core/types';
 import { blendToComposite, isRaster, isObjectLayer } from '../core/types';
 import { drawObject, resolveFill } from './objects';
 import { objectBounds } from '../core/objectBounds';
@@ -73,17 +73,27 @@ export function paintDocument(ctx: CanvasRenderingContext2D, doc: MapDocument, o
   }
 
   // --- Layers -------------------------------------------------------------
-  for (let i = 0; i < doc.layers.length; i++) {
-    const layer = doc.layers[i];
-    if (!layer.visible) continue;
-    if (o.soloLayerId && layer.id !== o.soloLayerId) continue;
-    if (o.audience === 'player' && layer.gmOnly) continue;
+  // Everything that lives in the world first, then the darkness, then the
+  // annotations that sit on top of it.
+  const lit = o.showLightingPreview && doc.lighting.darkness > 0;
+  const visible = doc.layers.filter((layer) => {
+    if (!layer.visible) return false;
+    if (o.soloLayerId && layer.id !== o.soloLayerId) return false;
+    if (o.audience === 'player' && layer.gmOnly) return false;
+    return true;
+  });
+
+  for (const layer of visible) {
+    if (lit && layer.aboveLighting) continue;
     paintLayer(ctx, doc, layer, o);
   }
 
   // --- Lighting preview ---------------------------------------------------
-  if (o.showLightingPreview && doc.lighting.darkness > 0) {
+  if (lit) {
     paintLighting(ctx, doc, o);
+    for (const layer of visible) {
+      if (layer.aboveLighting) paintLayer(ctx, doc, layer, o);
+    }
   }
 
   ctx.restore();
@@ -202,48 +212,160 @@ function getLayerCache(layer: ObjectLayer, doc: MapDocument, o: PaintOptions): S
 // Lighting
 // ---------------------------------------------------------------------------
 
+/**
+ * Darkness with light cast from each source, occluded by the walls.
+ *
+ * Without occlusion this pass draws a radial gradient per light and lets it
+ * through everything: torchlight pours out through the walls and floods the
+ * solid rock beyond, so a dungeon exported with baked lighting comes out as a
+ * bright orange page with a dungeon-shaped smudge in the middle. That is the
+ * opposite of what the option is for.
+ *
+ * Each light therefore gets its own visibility mask: the gradient, minus a
+ * shadow quad projected away from the light behind every sight-blocking wall
+ * within its radius. The masks are carved out of the darkness and, separately,
+ * tinted in — so a torch lights the room it is in, throws a wedge of light
+ * through an open door, and stops at the wall.
+ */
 function paintLighting(ctx: CanvasRenderingContext2D, doc: MapDocument, o: PaintOptions): void {
   const lightLayer = doc.layers.find((l) => l.kind === 'light');
   const lights: LightSource[] = lightLayer && lightLayer.kind === 'light' ? lightLayer.lights : [];
 
-  const scratch = createSurface(doc.width, doc.height);
-  const s = ctxOf(scratch);
-  s.fillStyle = rgba('#05070d', Math.min(0.94, doc.lighting.darkness));
-  s.fillRect(0, 0, doc.width, doc.height);
+  // Only walls that block sight cast shadows, and an open door does not.
+  const wallLayer = doc.layers.find((l) => l.kind === 'wall');
+  const occluders: Wall[] = wallLayer && wallLayer.kind === 'wall'
+    ? wallLayer.walls.filter((w) => w.blocksSight && w.doorState !== 'open')
+    : [];
 
-  s.globalCompositeOperation = 'destination-out';
+  const darkness = createSurface(doc.width, doc.height);
+  const d = ctxOf(darkness);
+  d.fillStyle = rgba('#05070d', Math.min(0.94, doc.lighting.darkness));
+  d.fillRect(0, 0, doc.width, doc.height);
+
+  const tint = createSurface(doc.width, doc.height);
+  const t = ctxOf(tint);
+
+  // Two scratch surfaces, reused and cleared per light over its own bounds only.
+  const scratch = createSurface(doc.width, doc.height);
+  const sc = ctxOf(scratch);
+  const soft = createSurface(doc.width, doc.height);
+  const so = ctxOf(soft);
+
+  // Penumbra. A shadow cast from a wall traced along cell edges has a razor
+  // edge that runs at right angles, which on a cave — where the painted rock is
+  // organic but the wall segments are still the cell staircase underneath —
+  // lights the floor in hard rectangles. Real torchlight has a soft edge
+  // anyway, so blurring the visibility mask is both correct and the fix.
+  const cellPx = doc.grid.size || 70;
+
   for (const l of lights) {
     const r = Math.max(l.bright, l.dim);
     if (r <= 0) continue;
-    const g = s.createRadialGradient(l.x, l.y, 0, l.x, l.y, r);
+
+    // A big light gets a wide penumbra; a candle gets a narrow one.
+    const penumbra = Math.min(cellPx * 1.1, Math.max(cellPx * 0.3, r * 0.14));
+    const pad = Math.ceil(penumbra * 2) + 2;
+    const x0 = Math.max(0, Math.floor(l.x - r) - pad);
+    const y0 = Math.max(0, Math.floor(l.y - r) - pad);
+    const x1 = Math.min(doc.width, Math.ceil(l.x + r) + pad);
+    const y1 = Math.min(doc.height, Math.ceil(l.y + r) + pad);
+    if (x1 <= x0 || y1 <= y0) continue;
+    sc.clearRect(x0, y0, x1 - x0, y1 - y0);
+
+    // The light itself, as a white visibility field.
     const brightStop = Math.max(0.001, Math.min(0.98, l.bright / r));
-    g.addColorStop(0, rgba('#ffffff', Math.min(1, l.intensity)));
-    g.addColorStop(brightStop, rgba('#ffffff', Math.min(1, l.intensity) * 0.85));
+    // Capped below full opacity so even the brightest spot keeps a trace of the
+    // darkness. Carving a light all the way to zero leaves a flat white hole
+    // that reads as a hole in the image rather than as a lit floor.
+    const peak = Math.min(0.9, l.intensity);
+    const g = sc.createRadialGradient(l.x, l.y, 0, l.x, l.y, r);
+    g.addColorStop(0, rgba('#ffffff', peak));
+    g.addColorStop(brightStop, rgba('#ffffff', peak * 0.85));
     g.addColorStop(1, rgba('#ffffff', 0));
-    s.fillStyle = g;
-    s.beginPath();
-    s.arc(l.x, l.y, r, 0, Math.PI * 2);
-    s.fill();
+    sc.fillStyle = g;
+    sc.beginPath();
+    sc.arc(l.x, l.y, r, 0, Math.PI * 2);
+    sc.fill();
+
+    // Cone lights: keep only the wedge.
+    if (l.angle > 0 && l.angle < 360) {
+      sc.save();
+      sc.globalCompositeOperation = 'destination-in';
+      const half = (l.angle * Math.PI) / 360;
+      const rot = (l.rotation * Math.PI) / 180;
+      sc.beginPath();
+      sc.moveTo(l.x, l.y);
+      sc.arc(l.x, l.y, r, rot - half, rot + half);
+      sc.closePath();
+      sc.fillStyle = '#ffffff';
+      sc.fill();
+      sc.restore();
+    }
+
+    // Shadows. Projecting to `r * 2.5` past each endpoint is comfortably
+    // outside the light's own circle, so the quad always covers everything
+    // the wall can hide without needing a real infinite projection.
+    sc.save();
+    sc.globalCompositeOperation = 'destination-out';
+    sc.fillStyle = '#000000';
+    const reach = r * 2.5;
+    for (const w of occluders) {
+      if (!segmentNearPoint(w.a, w.b, l.x, l.y, r)) continue;
+      const ax = w.a.x - l.x, ay = w.a.y - l.y;
+      const bx = w.b.x - l.x, by = w.b.y - l.y;
+      const la = Math.hypot(ax, ay) || 1;
+      const lb = Math.hypot(bx, by) || 1;
+      sc.beginPath();
+      sc.moveTo(w.a.x, w.a.y);
+      sc.lineTo(w.b.x, w.b.y);
+      sc.lineTo(l.x + (bx / lb) * reach, l.y + (by / lb) * reach);
+      sc.lineTo(l.x + (ax / la) * reach, l.y + (ay / la) * reach);
+      sc.closePath();
+      sc.fill();
+    }
+    sc.restore();
+
+    // Soften the mask, then use it for both passes.
+    so.save();
+    so.clearRect(x0, y0, x1 - x0, y1 - y0);
+    so.filter = `blur(${penumbra}px)`;
+    so.drawImage(scratch, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+    so.filter = 'none';
+    so.restore();
+
+    // Carve this light out of the darkness…
+    d.save();
+    d.globalCompositeOperation = 'destination-out';
+    d.drawImage(soft, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+    d.restore();
+
+    // …and add its colour, using the same mask so the tint respects the walls.
+    t.save();
+    t.globalCompositeOperation = 'lighter';
+    t.globalAlpha = 0.38 * Math.min(1, l.intensity);
+    t.drawImage(soft, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+    t.globalCompositeOperation = 'source-in';
+    t.globalAlpha = 1;
+    t.fillStyle = l.color;
+    t.fillRect(x0, y0, x1 - x0, y1 - y0);
+    t.restore();
   }
-  s.globalCompositeOperation = 'source-over';
 
-  ctx.drawImage(scratch, 0, 0);
-
-  // Warm tint from each light on top of the darkness.
+  ctx.drawImage(darkness, 0, 0);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  for (const l of lights) {
-    const r = Math.max(l.bright, l.dim);
-    if (r <= 0) continue;
-    const g = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, r);
-    g.addColorStop(0, rgba(l.color, 0.32 * l.intensity));
-    g.addColorStop(1, rgba(l.color, 0));
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(l.x, l.y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.drawImage(tint, 0, 0);
   ctx.restore();
+}
+
+/** Is any part of segment ab within `r` of (px, py)? */
+function segmentNearPoint(a: Vec2, b: Vec2, px: number, py: number, r: number): boolean {
+  const abx = b.x - a.x, aby = b.y - a.y;
+  const l2 = abx * abx + aby * aby;
+  let tt = l2 ? ((px - a.x) * abx + (py - a.y) * aby) / l2 : 0;
+  tt = tt < 0 ? 0 : tt > 1 ? 1 : tt;
+  const cx = a.x + tt * abx, cy = a.y + tt * aby;
+  return Math.hypot(px - cx, py - cy) <= r;
 }
 
 // ---------------------------------------------------------------------------

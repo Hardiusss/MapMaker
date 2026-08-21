@@ -30,6 +30,11 @@ export function ExportDialog({ initial, onClose }: { initial?: ExportFormat; onC
     ...DEFAULT_IMAGE_EXPORT,
     paletteId: editor.paletteId,
     includeGrid: doc.grid.visible,
+    // A dungeon or a cave is lit by what is burning in it, and an image export
+    // is the one that ends up printed or pasted into a document — nothing else
+    // is going to add the torchlight later. (A VTT export overrides this: the
+    // table's own lighting engine wants a flat image to work from.)
+    bakedLighting: (doc.kind === 'dungeon' || doc.kind === 'cave') && doc.lighting.darkness > 0,
   });
   const [foundry, setFoundry] = React.useState<FoundryExportOptions>({
     ...DEFAULT_FOUNDRY_OPTIONS,
