@@ -557,7 +557,7 @@ def({
     const warpN = new TileableNoise(7, rng.int(1, 1e6));
     const n = new TileableNoise(20, rng.int(1, 1e6));
     const fuzz = new TileableNoise(48, rng.int(1, 1e6));
-    const base0 = mix(p.forest, '#5f7a3a', 0.6);
+    const base0 = mix(mix(p.forest, '#5f7a3a', 0.6), '#6e7358', 0.28);
     const r = ramp([
       { t: 0, color: mix(base0, '#1c2a16', 0.65) },
       { t: 0.45, color: base0 },
@@ -565,13 +565,15 @@ def({
       { t: 1, color: mix(base0, '#d2e2a0', 0.6) },
     ]);
     px.each((u, v) => {
-      // Domain-warped turbulence gives soft irregular colonies; the cellular
-      // version gave every colony the same size and a visible tiling seam.
-      const wx = warpN.fbm(u * 7, v * 7, 3) * 0.4;
-      const wy = warpN.fbm(u * 7 + 4.9, v * 7 + 2.2, 3) * 0.4;
-      const colony = n.turbulence((u + wx) * 20, (v + wy) * 20, 4);
+      // Broad colonies from a warped low-frequency field, with fine grain on
+      // top. High-octave turbulence on its own produced tight swirls that read
+      // as marbling rather than as moss.
+      const wx = warpN.fbm(u * 4, v * 4, 2) * 0.2;
+      const wy = warpN.fbm(u * 4 + 4.9, v * 4 + 2.2, 2) * 0.2;
+      const colony = smoothstep(0.3, 0.78, n.fbm((u + wx) * 7, (v + wy) * 7, 2) * 0.5 + 0.5);
+      const patchy = (n.fbm(u * 18, v * 18, 2) * 0.5 + 0.5) * 0.3;
       const grain = fuzz.noise(u * 48, v * 48) * 0.5 + 0.5;
-      const t = clamp01(0.28 + colony * 0.95 + (grain - 0.5) * 0.22);
+      const t = clamp01(0.2 + colony * 0.58 + patchy + (grain - 0.5) * 0.2);
       const c = r(t);
       return [c[0], c[1], c[2], 255];
     });
@@ -610,10 +612,19 @@ def({
       { t: 0.8, color: mix(p.rock, p.highland, 0.6) },
       { t: 1, color: mix(p.rock, '#ffffff', 0.5) },
     ]);
+    const vert = new TileableNoise(30, rng.int(1, 1e6));
     px.each((u, v) => {
-      const layer = Math.sin((v * 9 + strata.fbm(u * 3, v * 3, 3) * 2) * Math.PI * 2) * 0.22;
-      const grain = n.turbulence(u * 6, v * 6, 5) * 0.5;
-      const c = r(clamp01(0.5 + layer + grain - 0.2));
+      // Bedding planes: a sine in v, buckled by noise, but crisped up so the
+      // strata read as edges of rock rather than as an airbrushed ripple.
+      const fold = strata.fbm(u * 3, v * 3, 3) * 2;
+      const wave = Math.sin((v * 9 + fold) * Math.PI * 2);
+      const layer = Math.sign(wave) * Math.pow(Math.abs(wave), 0.55) * 0.2;
+      // Shadow line under each bed, where the rock above overhangs.
+      const shelf = smoothstep(0.86, 1, wave) * 0.18;
+      // Vertical jointing and weathering streaks down the face.
+      const streak = (vert.noise(u * 30, v * 4) * 0.5 + 0.5) * 0.16;
+      const grain = n.turbulence(u * 6, v * 6, 5) * 0.42;
+      const c = r(clamp01(0.46 + layer + grain - shelf - streak * 0.6));
       return [c[0], c[1], c[2], 255];
     });
   },
@@ -669,13 +680,18 @@ def({
     ]);
     px.each((u, v) => {
       // Folded strata: warp the coordinate along one axis so the bands buckle.
-      const warp = strata.fbm(u * 4, v * 4, 3) * 0.22;
-      const band = strata.fbm(u * 3 + warp * 2, v * 9 + warp * 5, 4) * 0.5 + 0.5;
-      const grain = detail.turbulence(u * 24, v * 24, 3);
-      // Fracture lines where cells meet: joints in the rock face.
-      const [f1, f2] = frac.f1f2(u * 11, v * 11);
-      const joint = 1 - smoothstep(0.0, 0.055, f2 - f1);
-      const t = clamp01(band * 0.72 + grain * 0.3 - joint * 0.42);
+      const warp = strata.fbm(u * 4, v * 4, 3) * 0.3;
+      const band = strata.fbm(u * 2.4 + warp * 2, v * 10 + warp * 6, 5) * 0.5 + 0.5;
+      const grain = detail.turbulence(u * 24, v * 24, 4);
+      // Joints in the rock face, at two scales and with per-block shading, so
+      // it reads as a fractured cliff rather than crazy paving.
+      const [f1, f2, id] = frac.f1f2id(u * 11, v * 11);
+      const joint = 1 - smoothstep(0.0, 0.03, f2 - f1);
+      const [g1, g2] = frac.f1f2(u * 27 + 3.3, v * 27 + 1.1);
+      const hairline = 1 - smoothstep(0.0, 0.045, g2 - g1);
+      const block = (id - 0.5) * 0.16;
+      const t = clamp01(band * 0.84 + grain * 0.2 + block
+        - joint * 0.3 - hairline * 0.12);
       const c = r(t);
       return [c[0], c[1], c[2], 255];
     });
