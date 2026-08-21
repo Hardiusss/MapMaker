@@ -59,6 +59,7 @@ function backgroundFor(kind: MapKind, paletteId: string): FillStyle {
     case 'hex':
       return { type: 'texture', color: p.parchment, textureId: 'parchment', textureScale: 1 };
     case 'city':
+    case 'operational':
       return { type: 'texture', color: p.parchment, textureId: 'parchment-fine', textureScale: 1 };
     case 'dungeon':
     case 'cave':
@@ -85,6 +86,21 @@ export function defaultLayers(kind: MapKind, w: number, h: number): Layer[] {
         makeObjectLayer('Rivers & Lakes', 'water'),
         makeObjectLayer('Landmarks', 'features'),
         makeObjectLayer('Routes & Borders', 'features'),
+        makeObjectLayer('Labels', 'labels'),
+        makeNoteLayer(),
+      ];
+    case 'operational':
+      return [
+        makeRasterLayer('Terrain', w, h, 'background'),
+        makeRasterLayer('Relief', w, h, 'relief'),
+        makeRasterLayer('Water', w, h, 'water'),
+        makeObjectLayer('Watercourse', 'water'),
+        makeObjectLayer('Roads & Crossings', 'features'),
+        makeObjectLayer('Places', 'features'),
+        // The staff overlay: sectors, objectives, deployment zones, the legend.
+        // Kept as its own layer so it can be switched off to get a clean
+        // terrain map, or switched on alone to print a planning sheet.
+        { ...makeObjectLayer('Operations Overlay', 'labels'), aboveGrid: true },
         makeObjectLayer('Labels', 'labels'),
         makeNoteLayer(),
       ];

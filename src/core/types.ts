@@ -34,7 +34,7 @@ export function blendToComposite(b: BlendMode): GlobalCompositeOperation {
 // Map kinds & presets
 // ---------------------------------------------------------------------------
 
-export type MapKind = 'region' | 'city' | 'dungeon' | 'cave' | 'battle' | 'hex' | 'blank';
+export type MapKind = 'region' | 'operational' | 'city' | 'dungeon' | 'cave' | 'battle' | 'hex' | 'blank';
 
 export interface MapKindInfo {
   kind: MapKind;
@@ -52,6 +52,12 @@ export const MAP_KINDS: MapKindInfo[] = [
     kind: 'region', label: 'Region / World', blurb: 'Continents, coastlines, mountain ranges, kingdoms.',
     defaultGrid: 'none', defaultCell: 128, defaultUnits: 24, defaultUnitLabel: 'mi',
     defaultSize: { w: 2400, h: 1600 },
+  },
+  {
+    kind: 'operational', label: 'Operational / Theatre',
+    blurb: 'A few miles of ground: where an army can go, and where it cannot.',
+    defaultGrid: 'square', defaultCell: 96, defaultUnits: 100, defaultUnitLabel: 'yd',
+    defaultSize: { w: 2688, h: 1920 },
   },
   {
     kind: 'city', label: 'City / Settlement', blurb: 'Districts, streets, walls, harbours, keeps.',
@@ -336,6 +342,14 @@ export interface LayerBase {
    * key at all.
    */
   aboveLighting?: boolean;
+  /**
+   * Draw this layer after the measuring grid rather than before it.
+   *
+   * The grid is an instrument laid over the map, so it belongs on top of the
+   * terrain — but not on top of the key, which is a piece of paper pinned to
+   * the corner of the sheet and would be unreadable with rulings through it.
+   */
+  aboveGrid?: boolean;
 }
 
 export type LayerRole =

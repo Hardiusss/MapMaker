@@ -85,6 +85,7 @@ export function paintDocument(ctx: CanvasRenderingContext2D, doc: MapDocument, o
 
   for (const layer of visible) {
     if (lit && layer.aboveLighting) continue;
+    if (layer.aboveGrid) continue;
     paintLayer(ctx, doc, layer, o);
   }
 
@@ -92,7 +93,7 @@ export function paintDocument(ctx: CanvasRenderingContext2D, doc: MapDocument, o
   if (lit) {
     paintLighting(ctx, doc, o);
     for (const layer of visible) {
-      if (layer.aboveLighting) paintLayer(ctx, doc, layer, o);
+      if (layer.aboveLighting && !layer.aboveGrid) paintLayer(ctx, doc, layer, o);
     }
   }
 
@@ -101,6 +102,18 @@ export function paintDocument(ctx: CanvasRenderingContext2D, doc: MapDocument, o
   // --- Grid ---------------------------------------------------------------
   if (o.showGrid) {
     drawGrid(ctx, doc.grid, o.clip || { x: 0, y: 0, w: doc.width, h: doc.height }, o.zoom);
+  }
+
+  // --- Above the grid -----------------------------------------------------
+  if (visible.some((l) => l.aboveGrid)) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, doc.width, doc.height);
+    ctx.clip();
+    for (const layer of visible) {
+      if (layer.aboveGrid) paintLayer(ctx, doc, layer, o);
+    }
+    ctx.restore();
   }
 
   // --- Editor overlays ----------------------------------------------------

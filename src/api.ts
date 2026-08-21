@@ -9,6 +9,8 @@
 import type { Editor } from './core/editor';
 import type { MapDocument } from './core/types';
 import { generateRegion, DEFAULT_REGION_OPTIONS } from './gen/region/regionGen';
+import { generateOperational, battleFromSector, DEFAULT_OPERATIONAL_OPTIONS } from './gen/operational/operationalGen';
+import { OP_TERRAIN, OP_TERRAIN_ORDER } from './gen/operational/terrain';
 import { generateDungeon, DEFAULT_DUNGEON_OPTIONS } from './gen/dungeon/dungeonGen';
 import { generateCave, DEFAULT_CAVE_OPTIONS } from './gen/dungeon/caveGen';
 import { generateCity, DEFAULT_CITY_OPTIONS } from './gen/city/cityGen';
@@ -40,17 +42,29 @@ export function installApi(editor: Editor): void {
     /** Generators. Each returns a fresh document; `load` installs it. */
     generate: {
       region: generateRegion,
+      operational: generateOperational,
       dungeon: generateDungeon,
       cave: generateCave,
       city: generateCity,
       battle: generateBattleMap,
+      /**
+       * The tactical map for one sector of a theatre.
+       *
+       * `Aetheria.generate.battleFromSector(theatre, 'C3')` — the seed is
+       * derived from the theatre's seed and the designation, so a sector is
+       * always the same ground however many times a campaign returns to it.
+       */
+      battleFromSector,
       defaults: {
         region: DEFAULT_REGION_OPTIONS,
+        operational: DEFAULT_OPERATIONAL_OPTIONS,
         dungeon: DEFAULT_DUNGEON_OPTIONS,
         cave: DEFAULT_CAVE_OPTIONS,
         city: DEFAULT_CITY_OPTIONS,
         battle: DEFAULT_BATTLE_OPTIONS,
       },
+      /** The operational terrain table — movement, cover and sight per class. */
+      terrainTable: () => OP_TERRAIN_ORDER.map((t) => OP_TERRAIN[t]),
       seed: randomSeed,
     },
 

@@ -231,3 +231,39 @@ export function convexHull(points: Vec2[]): Vec2[] {
   };
   return half(pts).concat(half(pts.slice().reverse()));
 }
+
+/**
+ * Where two segments cross, or null. Endpoints touching does not count as a
+ * crossing — consecutive segments of a polyline always share one.
+ */
+export function segmentIntersection(p1: Vec2, p2: Vec2, p3: Vec2, p4: Vec2): Vec2 | null {
+  const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+  const den = d1x * d2y - d1y * d2x;
+  if (Math.abs(den) < 1e-9) return null;          // parallel
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / den;
+  const u = ((p3.x - p1.x) * d1y - (p3.y - p1.y) * d1x) / den;
+  const EPS = 1e-6;
+  if (t <= EPS || t >= 1 - EPS || u <= EPS || u >= 1 - EPS) return null;
+  return { x: p1.x + d1x * t, y: p1.y + d1y * t };
+}
+
+/**
+ * Splice out any section of a polyline that crosses an earlier part of itself.
+ *
+ * Smoothing a path that doubles back can pull the two halves through each
+ * other, and a river that crosses its own course is the one mistake a reader
+ * spots instantly. Cutting at the crossing keeps the line, loses the loop.
+ */
+export function removeLoops(path: Vec2[]): Vec2[] {
+  const out = path.slice();
+  for (let i = 0; i < out.length - 3; i++) {
+    for (let j = out.length - 2; j > i + 1; j--) {
+      const hit = segmentIntersection(out[i], out[i + 1], out[j], out[j + 1]);
+      if (!hit) continue;
+      out.splice(i + 1, j - i, hit);
+      break;
+    }
+  }
+  return out;
+}

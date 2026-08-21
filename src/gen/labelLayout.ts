@@ -66,6 +66,11 @@ export function layoutLabels(doc: MapDocument, opts: Partial<LabelLayoutOptions>
     if (layer.kind !== 'object' || !layer.visible) continue;
     for (const obj of layer.objects) {
       if (obj.kind !== 'text' || !obj.visible) continue;
+      // Some text is set, not placed: a legend, a title block, a column of
+      // figures. Nudging it apart to resolve a collision destroys the very
+      // alignment that makes it readable, so anything marked as fixed is left
+      // exactly where it was put.
+      if (obj.locked) continue;
       const t = obj as TextObject;
       entries.push({
         object: t,
