@@ -34,6 +34,8 @@ export interface Fields {
   temperature: Float32Array; // 0..1
   water: Uint8Array;         // 1 = ocean/lake
   flow: Float32Array;        // flow accumulation
+  /** Index of the cell each cell drains into, or -1 at an outlet. */
+  downstream: Int32Array;
   seaLevel: number;
   distanceToWater: Float32Array;
   /** Distance from each sea cell to the nearest land cell, in grid cells. */
@@ -95,7 +97,7 @@ export function generateFields(opts: Partial<FieldOptions> = {}): Fields {
   const distanceToLand = distanceField(water, w, h, 0);
 
   // --- Hydrology -----------------------------------------------------------
-  const flow = computeFlow(elevation, water, w, h);
+  const { flow, down: downstream } = computeFlow(elevation, water, w, h);
 
   // --- Climate -------------------------------------------------------------
   const temperature = new Float32Array(w * h);
@@ -123,7 +125,7 @@ export function generateFields(opts: Partial<FieldOptions> = {}): Fields {
 
   const moisture = rainfall(elevation, water, flow, distanceToWater, w, h, seaLevel, o, rng, moist);
 
-  return { w, h, elevation, moisture, temperature, water, flow, seaLevel, distanceToWater, distanceToLand };
+  return { w, h, elevation, moisture, temperature, water, flow, downstream, seaLevel, distanceToWater, distanceToLand };
 }
 
 // ---------------------------------------------------------------------------
@@ -408,60 +410,169 @@ function distanceField(water: Uint8Array, w: number, h: number, seedValue = 1): 
 }
 
 /** D8 flow accumulation — the input to river extraction. */
-function computeFlow(e: Float32Array, water: Uint8Array, w: number, h: number): Float32Array {
-  const order = new Int32Array(w * h);
-  for (let i = 0; i < order.length; i++) order[i] = i;
-  const arr = Array.from(order).sort((a, b) => e[b] - e[a]);
+/**
+ * Priority-Flood depression filling (Barnes, Lehman & Mulla, 2014).
+ *
+ * Fractal terrain is full of pits — thermal erosion makes more of them — and
+ * plain D8 flow routing dead-ends in every one. The symptom on a finished map
+ * is a continent with no rivers worth the name: drainage fragments into a few
+ * hundred private basins, the largest accumulation anywhere is a couple of
+ * hundred cells, and the river extractor quite correctly finds almost nothing
+ * to draw.
+ *
+ * Flooding the terrain from the sea inwards and raising each cell to just above
+ * whatever it drains through gives every land cell a strictly descending path
+ * to the ocean. The filled surface is used only for hydrology; the elevation
+ * the map is drawn from keeps its pits, because real basins are a feature.
+ */
+function fillDepressions(e: Float32Array, water: Uint8Array, w: number, h: number): Float32Array {
+  const n = w * h;
+  const filled = Float32Array.from(e);
+  const closed = new Uint8Array(n);
 
-  const flow = new Float32Array(w * h).fill(1);
-  const down = new Int32Array(w * h).fill(-1);
+  // Min-heap keyed on elevation.
+  const heapE: number[] = [];
+  const heapI: number[] = [];
+  const push = (val: number, cell: number) => {
+    heapE.push(val); heapI.push(cell);
+    let i = heapE.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heapE[p] <= heapE[i]) break;
+      [heapE[p], heapE[i]] = [heapE[i], heapE[p]];
+      [heapI[p], heapI[i]] = [heapI[i], heapI[p]];
+      i = p;
+    }
+  };
+  const pop = (): number => {
+    const top = heapI[0];
+    const lastE = heapE.pop()!, lastI = heapI.pop()!;
+    if (heapE.length) {
+      heapE[0] = lastE; heapI[0] = lastI;
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1, r = l + 1;
+        let m = i;
+        if (l < heapE.length && heapE[l] < heapE[m]) m = l;
+        if (r < heapE.length && heapE[r] < heapE[m]) m = r;
+        if (m === i) break;
+        [heapE[m], heapE[i]] = [heapE[i], heapE[m]];
+        [heapI[m], heapI[i]] = [heapI[i], heapI[m]];
+        i = m;
+      }
+    }
+    return top;
+  };
+
+  // Seed with every sea cell and every map-edge cell: those are the outlets.
+  for (let i = 0; i < n; i++) {
+    const x = i % w, y = (i / w) | 0;
+    if (water[i] || x === 0 || y === 0 || x === w - 1 || y === h - 1) {
+      closed[i] = 1;
+      push(filled[i], i);
+    }
+  }
+
+  // Enough to break ties without visibly altering the terrain: at Float32
+  // precision over a path of a few hundred cells this totals well under a
+  // thousandth of the full elevation range.
+  const EPS = 2e-6;
+
+  while (heapE.length) {
+    const c = pop();
+    const x = c % w, y = (c / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const j = idx(nx, ny, w);
+        if (closed[j]) continue;
+        closed[j] = 1;
+        if (filled[j] <= filled[c]) filled[j] = filled[c] + EPS;
+        push(filled[j], j);
+      }
+    }
+  }
+  return filled;
+}
+
+/**
+ * D8 flow accumulation over the depression-filled surface.
+ *
+ * Returns both the accumulation and the downstream pointer per cell — the
+ * river extractor follows the pointers rather than re-deriving a descent, which
+ * is what guarantees every river it draws actually reaches the sea.
+ */
+function computeFlow(
+  e: Float32Array, water: Uint8Array, w: number, h: number,
+): { flow: Float32Array; down: Int32Array } {
+  const hydro = fillDepressions(e, water, w, h);
+  const n = w * h;
+  const flow = new Float32Array(n).fill(1);
+  const down = new Int32Array(n).fill(-1);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = idx(x, y, w);
-      let best = -1, bestE = e[i];
+      // Steepest descent, weighted so diagonals are not unfairly favoured.
+      let best = -1, bestSlope = 0;
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           if (!dx && !dy) continue;
           const nx = x + dx, ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
           const j = idx(nx, ny, w);
-          if (e[j] < bestE) { bestE = e[j]; best = j; }
+          const drop = (hydro[i] - hydro[j]) / (dx && dy ? 1.41421356 : 1);
+          if (drop > bestSlope) { bestSlope = drop; best = j; }
         }
       }
       down[i] = best;
     }
   }
 
-  for (const i of arr) {
+  // Accumulate from high to low so every cell's own upstream total is final
+  // before it is added to its receiver.
+  const order = new Int32Array(n);
+  for (let i = 0; i < n; i++) order[i] = i;
+  const sorted = Array.from(order).sort((a, b) => hydro[b] - hydro[a]);
+  for (const i of sorted) {
     const j = down[i];
     if (j >= 0 && !water[i]) flow[j] += flow[i];
   }
-  return flow;
+  return { flow, down };
 }
 
 /**
- * Trace river polylines from their sources down to the sea.
+ * Trace river channels from the flow accumulation.
  *
- * Sorting purely by flow and tracing from the top picks river *mouths* first —
- * cells one step from the ocean — which produces two-pixel rivers and burns the
- * best candidates. Instead we find the heads (cells above the flow threshold
- * with no upstream neighbour that also clears it) and follow each one down.
+ * Heads are the highest cells whose accumulation crosses the threshold; each is
+ * followed down the drainage pointers to the sea or to a channel already drawn.
+ * Because the pointers come from a depression-filled surface, "down" always
+ * terminates — no river stops halfway across the continent in a pit that the
+ * renderer then has to pretend is a lake.
  */
-export function extractRivers(f: Fields, minFlow = 260, maxRivers = 26): { x: number; y: number; flow: number }[][] {
-  const { w, h, elevation, water, flow } = f;
+export function extractRivers(
+  f: Fields, minFlow?: number, maxRivers = 26,
+): { x: number; y: number; flow: number }[][] {
+  const { w, h, water, flow, downstream } = f;
+
+  // Scale the threshold to the grid so the same map at a different resolution
+  // grows the same river network rather than a denser or sparser one.
+  const threshold = minFlow ?? Math.max(40, (w * h) / 620);
 
   const heads: number[] = [];
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const i = idx(x, y, w);
-      if (water[i] || flow[i] <= minFlow) continue;
+      if (water[i] || flow[i] <= threshold) continue;
+      // A head is a cell no upstream neighbour feeds at river strength.
       let fed = false;
       for (let dy = -1; dy <= 1 && !fed; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           if (!dx && !dy) continue;
           const j = idx(x + dx, y + dy, w);
-          if (elevation[j] > elevation[i] && flow[j] > minFlow) { fed = true; break; }
+          if (downstream[j] === i && flow[j] > threshold) { fed = true; break; }
         }
       }
       if (!fed) heads.push(i);
@@ -483,25 +594,13 @@ export function extractRivers(f: Fields, minFlow = 260, maxRivers = 26): { x: nu
     let guard = 0;
     let joinedExisting = false;
 
-    while (guard++ < w + h) {
+    while (cur >= 0 && guard++ < w * h) {
       const x = cur % w, y = (cur / w) | 0;
       path.push({ x, y, flow: flow[cur] });
       if (water[cur]) break;
       if (claimed[cur] && path.length > 1) { joinedExisting = true; break; }
       claimed[cur] = 1;
-
-      let best = -1, bestE = elevation[cur];
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          if (!dx && !dy) continue;
-          const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          const j = idx(nx, ny, w);
-          if (elevation[j] < bestE) { bestE = elevation[j]; best = j; }
-        }
-      }
-      if (best < 0) break;   // sink: a lake with no outlet
-      cur = best;
+      cur = downstream[cur];
     }
 
     // A tributary that merges into a bigger river is still worth drawing, but a

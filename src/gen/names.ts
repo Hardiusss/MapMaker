@@ -167,7 +167,10 @@ const SAINTS = ['Aldric', 'Berrin', 'Cadmus', 'Doriel', 'Ellery', 'Faron', 'Gale
 const WATER_NOUNS = ['River', 'Run', 'Brook', 'Water', 'Flow', 'Stream', 'Rill', 'Race'];
 const RANGE_NOUNS = ['Mountains', 'Peaks', 'Range', 'Spine', 'Teeth', 'Crags', 'Heights', 'Wall', 'Horns', 'Shoulders'];
 const FOREST_NOUNS = ['Wood', 'Forest', 'Thicket', 'Wilds', 'Grove', 'Weald', 'Copse', 'Tangle'];
-const REGION_NOUNS = ['Reach', 'March', 'Vale', 'Downs', 'Expanse', 'Fields', 'Wastes', 'Barrens', 'Coast', 'Isles', 'Kingdom', 'Domain', 'Frontier', 'Hollows'];
+// No 'Isles' here: these name inland biome regions, and an archipelago label
+// on a snowfield is the kind of detail that makes a reader stop trusting the
+// rest of the map.
+const REGION_NOUNS = ['Reach', 'March', 'Vale', 'Downs', 'Expanse', 'Fields', 'Wastes', 'Barrens', 'Heath', 'Kingdom', 'Domain', 'Frontier', 'Hollows', 'Steppe', 'Flats'];
 const SEA_NOUNS = ['Sea', 'Gulf', 'Bay', 'Straits', 'Deep', 'Sound', 'Ocean', 'Reach'];
 const DUNGEON_PREFIX = ['Tomb', 'Crypt', 'Vault', 'Halls', 'Delve', 'Warrens', 'Catacombs', 'Sanctum', 'Labyrinth', 'Pits', 'Undercroft', 'Barrow', 'Redoubt', 'Oubliette'];
 const DUNGEON_OF = ['the Forgotten King', 'the Silent Choir', 'a Thousand Sighs', 'the Drowned God', 'the Pale Warden', 'Broken Oaths', 'the Iron Abbot', 'Restless Ash', 'the Hollow Crown', 'the Weeping Saint'];

@@ -68,7 +68,7 @@ export const DEFAULT_REGION_OPTIONS: RegionGenOptions = {
   landRatio: 0.46, roughness: 0.5, relief: 0.6, moisture: 0, temperature: 0,
   paletteId: 'atlas', culture: 'common',
   mountainStamps: true, forestStamps: true, hillStamps: true,
-  rivers: true, riverCount: 14, settlements: 12,
+  rivers: true, riverCount: 22, settlements: 12,
   labels: true, compass: true, scaleBar: true, border: false, aged: true,
   gridType: 'none',
   roads: true, roadRedundancy: 0.35, bridges: true,
@@ -188,6 +188,7 @@ function paintBiomes(doc: MapDocument, f: Fields, biomes: Uint8Array, o: RegionG
     return t;
   };
   for (let i = 0; i < BIOME_ORDER.length; i++) tileFor(i);
+  const snowTile = tileFor(BIOME_INDEX['snow']);
 
   // --- Warp fields, computed coarse and sampled with nearest neighbour ----
   const warp = new SimplexNoise(o.seed + 613);
@@ -275,6 +276,22 @@ function paintBiomes(doc: MapDocument, f: Fields, biomes: Uint8Array, o: RegionG
         bd[di] = r; bd[di + 1] = g; bd[di + 2] = bl; bd[di + 3] = 255;
         td[di + 3] = 0;
       } else {
+        // Snow cover, laid over whatever biome is underneath rather than
+        // replacing it. Where the ground is cold enough it goes fully white;
+        // either side of that it breaks into drifts and bare patches, using the
+        // warp field as free noise. Painting snow as its own biome instead gave
+        // a white blob whose edge was a clean temperature isoline, which is the
+        // single most obviously synthetic thing a map can show.
+        if (t < 0.26) {
+          const patch = warpX[wi] * 0.05 + warpY[wi] * 0.035;
+          const snowAmt = smoothstep(0.21, 0.03, t + patch);
+          if (snowAmt > 0.004) {
+            r += (snowTile[ti] - r) * snowAmt;
+            g += (snowTile[ti + 1] - g) * snowAmt;
+            bl += (snowTile[ti + 2] - bl) * snowAmt;
+          }
+        }
+
         // Shore ink: the pen line a cartographer draws along the coast. Fading
         // it over the last fraction of a cell antialiases the line for free.
         const dwShore = sample(distanceToWater, gx, gy);
@@ -375,8 +392,16 @@ function addRivers(
     || doc.layers.find((l) => l.kind === 'object' && l.role === 'features');
   if (!layer || layer.kind !== 'object') return;
   const palette = paletteById(o.paletteId);
-  const rivers = extractRivers(f, 120, o.riverCount);
+  const rivers = extractRivers(f, undefined, o.riverCount);
   if (BENCH) console.log(`[bench]   rivers found: ${rivers.length}`);
+
+  // Width is relative to the largest river on this map, not to an absolute
+  // accumulation figure: a small island and a continent should both end up with
+  // one obvious trunk river and a spread of lesser ones, rather than every
+  // channel on the big map pinned to the same maximum.
+  let peak = 1;
+  for (const r of rivers) for (const p of r) if (p.flow > peak) peak = p.flow;
+  const mapScale = doc.width / 2400;
 
   for (const r of rivers) {
     if (r.length < 10) continue;
@@ -384,7 +409,8 @@ function addRivers(
     pts = chaikin(simplify(pts, Math.max(1.2, sx * 0.35)), 2);
     if (pts.length < 3) continue;
     const maxFlow = Math.max(...r.map((p) => p.flow));
-    const width = Math.max(5, Math.min(34, Math.sqrt(maxFlow) * 0.8 * (doc.width / 2400)));
+    const rank = Math.sqrt(clamp01(maxFlow / peak));
+    const width = (4 + rank * 20) * mapScale;
     const river = makePath('river', pts, o.paletteId, {
       name: namer.river(),
       width,

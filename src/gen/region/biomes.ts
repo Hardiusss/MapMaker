@@ -80,7 +80,10 @@ export function classifyValues(
   // country that make a generated map look broken.
   if (alt > 0.82) return t < 0.16 ? 'peak' : 'mountain';
   if (alt > 0.62) return 'mountain';
-  if (alt > 0.46) return t < 0.10 ? 'snow' : 'highland';
+  // Snow is no longer a biome at these altitudes — see `paintBiomes`, which
+  // lays it over whatever is underneath as a patchy cover. A hard threshold
+  // here produced a white blob with a clean isoline for an edge.
+  if (alt > 0.46) return 'highland';
 
   // Golden sand stops at the treeline too. A polar shore is frozen gravel, and
   // running the tropical beach rule up to the ice cap puts a bright yellow
@@ -88,7 +91,11 @@ export function classifyValues(
   if (distToWater <= 1.6 && alt < 0.08) return t < 0.22 ? 'tundra' : 'beach';
   if (alt < 0.12 && m > 0.68 && t > 0.3) return 'swamp';
 
-  if (t < 0.09) return 'snow';
+  // A treeline band between the ice and the forest. Without it a snowfield can
+  // butt straight up against dark taiga, and the hard white-on-green edge is
+  // the most conspicuous seam anywhere on the map — worse than the classifier
+  // being a degree or two wrong about where the trees stop.
+  if (t < 0.17) return 'tundra';
   if (t < 0.30) return m > 0.5 ? 'taiga' : 'tundra';
   if (t < 0.52) {
     if (m > 0.6) return 'taiga';

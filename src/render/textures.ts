@@ -414,15 +414,15 @@ def({
       { t: 0, color: mix(p.snow, '#6f89a8', 0.5) },
       { t: 0.32, color: mix(p.snow, '#9fb4cb', 0.45) },
       { t: 0.6, color: mix(p.snow, '#dde8f2', 0.55) },
-      { t: 0.86, color: mix(p.snow, '#ffffff', 0.7) },
-      { t: 1, color: '#ffffff' },
+      { t: 0.86, color: mix(p.snow, '#f4f9ff', 0.6) },
+      { t: 1, color: mix(p.snow, '#ffffff', 0.75) },
     ]);
     px.each((u, v) => {
       const base = n.fbm(u * 9, v * 9, 4) * 0.5 + 0.5;
       // Sastrugi: wind-carved ridges, elongated along one axis.
       const ridges = 1 - Math.abs(drift.fbm(u * 20, v * 7, 4));
       const speck = grain.noise(u * 64, v * 64) * 0.06;
-      const c = r(clamp01(base * 0.5 + ridges * 0.42 + speck));
+      const c = r(clamp01(base * 0.62 + ridges * 0.3 + speck));
       return [c[0], c[1], c[2], 255];
     });
   },

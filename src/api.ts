@@ -25,7 +25,7 @@ import {
 import { renderToSurface, renderThumbnail } from './render/renderer';
 import { allAssets, renderAsset, assetPreview } from './assets/library';
 import { TEXTURES, getTexture } from './render/textures';
-import { generateFields } from './gen/region/heightmap';
+import { generateFields, extractRivers } from './gen/region/heightmap';
 import { classify, BIOME_ORDER } from './gen/region/biomes';
 import { deriveWallsFromDocument } from './gen/deriveWalls';
 import { createDocument } from './core/doc';
@@ -139,6 +139,24 @@ export function installApi(editor: Editor): void {
           for (const k of keys) rows[k].push(+((tally[k] || 0) / land * 100).toFixed(1));
         }
         return rows;
+      },
+
+      /** Flow-accumulation profile and how many river heads survive extraction. */
+      riverStats(seed = 31337, minFlow = 120, opts: Record<string, unknown> = {}) {
+        const f = generateFields({ seed, ...opts });
+        const land: number[] = [];
+        for (let i = 0; i < f.flow.length; i++) if (!f.water[i]) land.push(f.flow[i]);
+        land.sort((a, b) => a - b);
+        const q = (p: number) => +land[Math.min(land.length - 1, Math.floor(p * land.length))].toFixed(1);
+        const over = (t: number) => land.filter((v) => v > t).length;
+        const rivers = extractRivers(f, minFlow, 40);
+        return {
+          landCells: land.length,
+          flowQuantiles: { p50: q(0.5), p90: q(0.9), p99: q(0.99), p999: q(0.999), max: q(1) },
+          cellsOverMinFlow: over(minFlow),
+          riversFound: rivers.length,
+          riverLengths: rivers.map((r) => r.length).sort((a, b) => b - a),
+        };
       },
 
       biomeStats(seeds = 6, opts: Record<string, unknown> = {}) {
