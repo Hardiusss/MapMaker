@@ -283,9 +283,15 @@ function buildRoads(
 ): Vec2[][] {
   const { cols, rows } = f;
   const cost = new Float32Array(cols * rows);
+  // A little noise in the cost so a road across featureless ground wanders the
+  // way a real one does. Without it A* on a uniform field produces dead
+  // straight runs meeting at right angles, which reads as a railway timetable.
+  const wobble = new SimplexNoise(o.seed + 991);
   for (let i = 0; i < cost.length; i++) {
     const m = moveCost(terrain[i]);
-    cost[i] = Number.isFinite(m) ? m : 1e5;
+    const x = i % cols, y = (i / cols) | 0;
+    const n = wobble.fbm(x * 0.16, y * 0.16, 3) * 0.5 + 0.5;
+    cost[i] = Number.isFinite(m) ? m * (0.75 + n * 0.55) : 1e5;
   }
   // Crossings are cheap: that is the whole point of them.
   for (const c of crossings) cost[IDX(c.x, c.y, cols)] = 0.6;

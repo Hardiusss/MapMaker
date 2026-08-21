@@ -9,10 +9,13 @@ import { generateDungeon, DEFAULT_DUNGEON_OPTIONS, type DungeonGenOptions } from
 import { generateCave, DEFAULT_CAVE_OPTIONS, type CaveGenOptions } from '../../gen/dungeon/caveGen';
 import { generateCity, DEFAULT_CITY_OPTIONS, type CityGenOptions } from '../../gen/city/cityGen';
 import { generateBattleMap, DEFAULT_BATTLE_OPTIONS, type BattleGenOptions } from '../../gen/battle/battleGen';
+import {
+  generateOperational, DEFAULT_OPERATIONAL_OPTIONS, type OperationalGenOptions,
+} from '../../gen/operational/operationalGen';
 import { TEXTURES } from '../../render/textures';
 import type { MapKind } from '../../core/types';
 
-export type GenKind = 'region' | 'dungeon' | 'cave' | 'city' | 'battle';
+export type GenKind = 'region' | 'operational' | 'dungeon' | 'cave' | 'city' | 'battle';
 
 export function kindToGen(kind: MapKind): GenKind {
   switch (kind) {
@@ -20,6 +23,7 @@ export function kindToGen(kind: MapKind): GenKind {
     case 'cave': return 'cave';
     case 'city': return 'city';
     case 'battle': return 'battle';
+    case 'operational': return 'operational';
     default: return 'region';
   }
 }
@@ -34,6 +38,7 @@ export function GenerateDialog({ initial, onClose }: { initial: GenKind; onClose
   const [cave, setCave] = React.useState<CaveGenOptions>({ ...DEFAULT_CAVE_OPTIONS, seed: randomSeed() });
   const [city, setCity] = React.useState<CityGenOptions>({ ...DEFAULT_CITY_OPTIONS, seed: randomSeed(), paletteId: editor.paletteId });
   const [battle, setBattle] = React.useState<BattleGenOptions>({ ...DEFAULT_BATTLE_OPTIONS, seed: randomSeed() });
+  const [operational, setOperational] = React.useState<OperationalGenOptions>({ ...DEFAULT_OPERATIONAL_OPTIONS, seed: randomSeed(), paletteId: editor.paletteId });
 
   const run = (newSeed = false) => {
     setBusy(true);
@@ -56,6 +61,11 @@ export function GenerateDialog({ initial, onClose }: { initial: GenKind; onClose
           const o = newSeed ? { ...cave, seed: randomSeed() } : cave;
           if (newSeed) setCave(o);
           doc = generateCave(o).doc;
+          paletteId = o.paletteId;
+        } else if (kind === 'operational') {
+          const o = newSeed ? { ...operational, seed: randomSeed() } : operational;
+          if (newSeed) setOperational(o);
+          doc = generateOperational(o).doc;
           paletteId = o.paletteId;
         } else if (kind === 'city') {
           const o = newSeed ? { ...city, seed: randomSeed() } : city;
@@ -82,6 +92,7 @@ export function GenerateDialog({ initial, onClose }: { initial: GenKind; onClose
 
   const TABS: { id: GenKind; label: string }[] = [
     { id: 'region', label: 'Region / World' },
+    { id: 'operational', label: 'Operational' },
     { id: 'city', label: 'City' },
     { id: 'dungeon', label: 'Dungeon' },
     { id: 'cave', label: 'Caves' },
@@ -122,6 +133,7 @@ export function GenerateDialog({ initial, onClose }: { initial: GenKind; onClose
       )}
 
       {!busy && kind === 'region' && <RegionForm value={region} onChange={setRegion} />}
+      {!busy && kind === 'operational' && <OperationalForm value={operational} onChange={setOperational} />}
       {!busy && kind === 'city' && <CityForm value={city} onChange={setCity} />}
       {!busy && kind === 'dungeon' && <DungeonForm value={dungeon} onChange={setDungeon} />}
       {!busy && kind === 'cave' && <CaveForm value={cave} onChange={setCave} />}
@@ -370,6 +382,67 @@ function DungeonForm({ value, onChange }: { value: DungeonGenOptions; onChange: 
             onChange={(v) => set({ wallTexture: v })} />
           <Slider label="Edge roughness" value={value.edgeRoughness} min={0} max={1} step={0.05}
             onChange={(v) => set({ edgeRoughness: v })} />
+          <SelectField label="Palette" value={value.paletteId}
+            options={PALETTES.map((p) => ({ value: p.id, label: p.name }))}
+            onChange={(v) => set({ paletteId: v })} />
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+function OperationalForm({ value, onChange }: { value: OperationalGenOptions; onChange: (v: OperationalGenOptions) => void }) {
+  const set = (p: Partial<OperationalGenOptions>) => onChange({ ...value, ...p });
+  const cols = Math.max(10, Math.floor(value.width / value.cell));
+  const rows = Math.max(8, Math.floor(value.height / value.cell));
+  return (
+    <div className="grid-2">
+      <div>
+        <Section title="The ground">
+          <SeedRow value={value} onChange={onChange} />
+          <Slider label="Relief" value={value.relief} min={0} max={1} step={0.05}
+            format={(v) => (v < 0.3 ? 'plain' : v < 0.65 ? 'rolling' : 'a pass')}
+            onChange={(v) => set({ relief: v })} />
+          <Slider label="Woodland" value={value.woodland} min={0} max={1} step={0.05}
+            onChange={(v) => set({ woodland: v })} />
+          <Slider label="Wet ground" value={value.wetness} min={0} max={1} step={0.05}
+            onChange={(v) => set({ wetness: v })} />
+          <Slider label="Settlement" value={value.settlement} min={0} max={1} step={0.05}
+            onChange={(v) => set({ settlement: v })} />
+        </Section>
+        <Section title="Extent">
+          <div className="grid-2">
+            <NumberField label="Width" value={value.width} min={960} max={6000} step={96} onChange={(v) => set({ width: v })} />
+            <NumberField label="Height" value={value.height} min={768} max={6000} step={96} onChange={(v) => set({ height: v })} />
+          </div>
+          <NumberField label="Cell size" value={value.cell} min={48} max={200} suffix="px" onChange={(v) => set({ cell: v })} />
+          <div className="grid-2">
+            <NumberField label="Per cell" value={value.unitsPerCell} min={10} max={2000}
+              onChange={(v) => set({ unitsPerCell: Math.round(v) })} />
+            <TextField label="Units" value={value.unitLabel} onChange={(v) => set({ unitLabel: v })} />
+          </div>
+          <p className="hint" style={{ margin: '2px 0 0' }}>
+            {cols}×{rows} cells — {(cols * value.unitsPerCell).toLocaleString()}×
+            {(rows * value.unitsPerCell).toLocaleString()} {value.unitLabel} of ground.
+            One cell is about one tactical map.
+          </p>
+        </Section>
+      </div>
+      <div>
+        <Section title="Staff overlay">
+          <Toggle label="Sectors, objectives and key" value={value.overlay} onChange={(v) => set({ overlay: v })} />
+          <Toggle label="Contour lines" value={value.contours} onChange={(v) => set({ contours: v })} />
+          <NumberField label="Sector size" value={value.sectorSize} min={2} max={8} suffix="cells"
+            onChange={(v) => set({ sectorSize: Math.round(v) })} />
+          <NumberField label="Objectives" value={value.objectives} min={0} max={12}
+            onChange={(v) => set({ objectives: Math.round(v) })} />
+          <p className="hint" style={{ margin: '2px 0 0' }}>
+            Sectors are lettered A1, B1… Hand one to the battle generator with
+            <code> Aetheria.generate.battleFromSector(theatre, 'C3')</code> and you get the
+            table that sector is fought on — the same ground every time you go back to it.
+          </p>
+        </Section>
+        <Section title="Look">
           <SelectField label="Palette" value={value.paletteId}
             options={PALETTES.map((p) => ({ value: p.id, label: p.name }))}
             onChange={(v) => set({ paletteId: v })} />

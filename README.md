@@ -17,6 +17,7 @@ repeats.
 
 | Generator | What you get |
 |---|---|
+| Operational / Theatre | A few kilometres of ground between the world map and the table: every cell classified by movement cost, cover and line of sight, one watercourse with two or three crossings, roads routed through them, lettered sectors, ranked chokepoints, and objectives that say why they are objectives |
 | Region / World | Continents from a real heightmap: erosion, a depression-filled drainage network with proper dendritic rivers, rainfall from a prevailing wind so deserts sit in rain shadows, settlements sited near water, political realms, roads routed over the terrain, and named ranges, forests and seas |
 | City / Settlement | A street network first, then terraces built along both frontages of every street, backland plots filling the block interiors, curtain walls with towers and gates, castle, temple, market, docks, farmland and district labels |
 | Dungeon | BSP room partitioning, corridors, doors (including secret and locked ones), furnishings chosen to match each room's purpose and set against the walls, torchlight, numbered rooms and GM notes |
@@ -29,6 +30,23 @@ Layers with opacity, blend modes, clipping and merge. A textured brush engine
 with hardness, flow, edge noise and pressure response. Stamps, labels with
 curved text and halos, shapes, and a path tool for rivers, roads, borders and
 ridges. Undo and redo for everything, including individual brush strokes.
+
+**One map, a campaign of battles**
+
+An operational map is a theatre a few kilometres across, divided into lettered
+sectors. `Aetheria.generate.battleFromSector(theatre, 'C3')` builds the tactical
+map that sector is fought on — its terrain mix chooses the recipe, and the seed
+comes from the theatre plus the designation, so C3 is the same ground every time
+the campaign goes back to it. Plan the operation on one sheet; play each
+engagement on a table generated from it.
+
+**Torchlight that stops at the walls**
+
+Dungeons and caves export with their lighting baked in. Every torch casts a
+visibility mask occluded by the wall set, so a brazier lights its own chamber,
+throws a wedge through an open door, and leaves the corridor beyond it dark.
+Room keys and GM notes sit above the darkness, because a key you cannot read in
+the unlit half of the map is not a key.
 
 **Hex crawls and planning maps**
 

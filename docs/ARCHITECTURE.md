@@ -289,6 +289,41 @@ heavily and re-thresholding it **against a noise field** rather than a constant:
 a constant threshold on a blurred grid gives rounded rectangles; a noisy one
 gives rock.
 
+### Operational
+
+The scale between the table and the world: a theatre a few kilometres across on
+a grid whose cell is roughly one tactical engagement.
+
+Every terrain class carries movement cost, cover and line of sight in one table,
+and the legend is generated from that same table — so the map cannot drift out
+of agreement with its own key. The classification is the answer to a commander's
+question rather than a climatologist's: not what grows here, but how long it
+takes to cross, whether you can see through it, and whether it will stop a
+charge.
+
+The terrain is painted **per pixel from the underlying fields**, not per cell.
+Filling each cell with one flat colour makes every class boundary a cell edge,
+and the result reads as a chequerboard rather than as ground; the cell grid is a
+measuring instrument laid over the map, not the map itself.
+
+Slope is measured against a **fixed** reference gradient rather than the map's
+own maximum. Normalising by the maximum renormalises every theatre to the same
+spread, so one asked for as a mountain pass classifies exactly like one asked
+for as a plain — the relief control moves the colours and changes nothing that
+matters.
+
+Chokepoints are ranked by how much narrower the corridor *through* a cell is
+than the corridor *across* it, and the most constricted few are kept. An
+absolute test — impassable ground within one cell on both sides — finds nothing
+at all on open country, which is the wrong answer: a plain still has a gap
+between the wood and the marsh, and that is still where the defender stands.
+
+`battleFromSector` is the join that makes the whole thing worth having. A
+sector's terrain mix picks the battle-map recipe, its tree share sets the prop
+density, and the seed is derived from the theatre's seed and the sector's
+designation — so C3 is the same ground whoever generates it and whenever, and a
+campaign fought across the theatre stays consistent between sessions.
+
 ### City
 
 Streets are laid first, then buildings are placed **along the frontages**. The
@@ -307,6 +342,27 @@ Overlap testing is a separating-axis test on the oriented rectangles. A circular
 approximation cannot express "shoulder to shoulder": it gives a plot 16 wide and
 28 deep a 12-unit exclusion radius in every direction, which pushes its
 neighbour along the street 25 units away and makes a terrace impossible.
+
+### Lighting
+
+Baked lighting gives each source a visibility mask: its radial gradient, minus a
+shadow quad projected away from the light behind every sight-blocking wall in
+range. The mask is carved out of the darkness and used again for the warm tint,
+so a torch lights the room it is in, throws a wedge through an open door, and
+stops at the wall. Without the occlusion the light pours through everything and
+a dungeon exports as a bright orange page with a dungeon-shaped smudge in it.
+
+Two details matter more than they look. The mask is blurred by a radius-scaled
+penumbra, because a shadow cast from walls traced along cell edges has a razor
+edge at right angles and lights a cave floor in hard rectangles. And the
+brightest point stops short of full opacity, because carving a light all the way
+to zero leaves a flat white hole that reads as damage to the image rather than
+as a lit floor.
+
+Layers can be drawn above the darkness (`aboveLighting`) and above the grid
+(`aboveGrid`). The first is for room keys and GM notes; the second is for the
+operational map's legend, which is a sheet of paper pinned to the corner of the
+map rather than something with rulings through it.
 
 ### Battle map
 

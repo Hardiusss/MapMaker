@@ -84,7 +84,12 @@ export function generateOpFields(o: OpFieldOptions): OpFields {
   }
 
   // --- Slope ---------------------------------------------------------------
-  let maxSlope = 1e-6;
+  // Against a *fixed* reference gradient, not the map's own maximum. Dividing
+  // by the maximum renormalises every map to the same spread, so a theatre
+  // asked for as a mountain pass classifies exactly like a theatre asked for as
+  // a plain — the relief slider moves the colours and changes nothing that
+  // matters. A constant means steep ground is steep in absolute terms.
+  const REFERENCE_GRADIENT = 0.3;
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const i = IDX(x, y, cols);
@@ -92,12 +97,9 @@ export function generateOpFields(o: OpFieldOptions): OpFields {
       const r = elevation[IDX(Math.min(cols - 1, x + 1), y, cols)];
       const u = elevation[IDX(x, Math.max(0, y - 1), cols)];
       const d = elevation[IDX(x, Math.min(rows - 1, y + 1), cols)];
-      const s = Math.hypot(r - l, d - u);
-      slope[i] = s;
-      if (s > maxSlope) maxSlope = s;
+      slope[i] = clamp01(Math.hypot(r - l, d - u) / REFERENCE_GRADIENT);
     }
   }
-  for (let i = 0; i < n; i++) slope[i] = clamp01(slope[i] / maxSlope);
 
   // --- Watercourse ---------------------------------------------------------
   // One river, walked downhill from the highest edge cell. At this scale a

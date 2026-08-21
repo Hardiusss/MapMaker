@@ -172,6 +172,7 @@ function buildMenu() {
       label: 'Generate',
       submenu: [
         { label: 'Region / World…', click: () => send('menu', { command: 'generate', kind: 'region' }) },
+        { label: 'Operational / Theatre…', click: () => send('menu', { command: 'generate', kind: 'operational' }) },
         { label: 'Dungeon…', click: () => send('menu', { command: 'generate', kind: 'dungeon' }) },
         { label: 'Cave System…', click: () => send('menu', { command: 'generate', kind: 'cave' }) },
         { label: 'City / Settlement…', click: () => send('menu', { command: 'generate', kind: 'city' }) },

@@ -49,9 +49,9 @@ export const OP_TERRAIN: Record<OpTerrain, TerrainClass> = {
   marsh:  { id: 'marsh',  label: 'Marsh',           move: 3,        cover: 'light', blocksSight: false, color: '#6f7c58', texture: 'swamp',     note: 'Exhausting; no charge, no cavalry.' },
   water:  { id: 'water',  label: 'Deep water',      move: Infinity, cover: 'none',  blocksSight: false, color: '#4a7183', texture: 'water',     note: 'Impassable except by boat.' },
   ford:   { id: 'ford',   label: 'Ford',            move: 2,        cover: 'none',  blocksSight: false, color: '#7fa2ad', texture: 'water-shallow', note: 'The only place a body of troops crosses.' },
-  rough:  { id: 'rough',  label: 'Broken ground',   move: 2,        cover: 'light', blocksSight: false, color: '#9c9070', texture: 'scree',     note: 'Breaks up a line; light cover.' },
-  steep:  { id: 'steep',  label: 'Steep slope',     move: 3,        cover: 'none',  blocksSight: false, color: '#a09274', texture: 'rock',      note: 'Uphill fight; costly to assault.' },
-  crag:   { id: 'crag',   label: 'Crag',            move: Infinity, cover: 'none',  blocksSight: true,  color: '#7c7466', texture: 'mountain-rock', note: 'Impassable; anchors a flank.' },
+  rough:  { id: 'rough',  label: 'Broken ground',   move: 2,        cover: 'light', blocksSight: false, color: '#b0a07c', texture: 'scree',     note: 'Breaks up a line; light cover.' },
+  steep:  { id: 'steep',  label: 'Steep slope',     move: 3,        cover: 'none',  blocksSight: false, color: '#8d7a5e', texture: 'rock',      note: 'Uphill fight; costly to assault.' },
+  crag:   { id: 'crag',   label: 'Crag',            move: Infinity, cover: 'none',  blocksSight: true,  color: '#5d554a', texture: 'mountain-rock', note: 'Impassable; anchors a flank.' },
   built:  { id: 'built',  label: 'Built-up',        move: 1.5,      cover: 'heavy', blocksSight: true,  color: '#b09a80', texture: 'cobble',    note: 'Strongpoint. Must be cleared house by house.' },
   ruin:   { id: 'ruin',   label: 'Ruins',           move: 2,        cover: 'heavy', blocksSight: false, color: '#9a9184', texture: 'stone-floor', note: 'Heavy cover, bad going, worth holding.' },
 };
