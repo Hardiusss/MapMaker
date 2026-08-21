@@ -586,17 +586,55 @@ export const DUNGEON_ASSETS: AssetDef[] = [
     draw(a) {
       const { ctx, w, h, rng } = a;
       const bone = '#ded6c4';
-      ctx.strokeStyle = bone;
+      const boneDark = '#a89b83';
       ctx.lineCap = 'round';
-      for (let i = 0; i < rng.int(5, 9); i++) {
-        const x = rng.float(w * 0.15, w * 0.85), y = rng.float(h * 0.2, h * 0.85);
-        const ang = rng.float(0, Math.PI * 2), l = w * rng.float(0.1, 0.24);
-        ctx.lineWidth = Math.max(1.5, w * 0.03);
+
+      // Long bones as knobbled dumbbells rather than hairlines: a 1.5px stroke
+      // disappears the moment the map is viewed at anything but full size.
+      const longBone = (x: number, y: number, ang: number, l: number, thick: number) => {
+        const dx = Math.cos(ang) * l / 2, dy = Math.sin(ang) * l / 2;
+        ctx.strokeStyle = boneDark;
+        ctx.lineWidth = thick * 1.35;
         ctx.beginPath();
-        ctx.moveTo(x - Math.cos(ang) * l / 2, y - Math.sin(ang) * l / 2);
-        ctx.lineTo(x + Math.cos(ang) * l / 2, y + Math.sin(ang) * l / 2);
+        ctx.moveTo(x - dx, y - dy); ctx.lineTo(x + dx, y + dy);
+        ctx.stroke();
+        ctx.strokeStyle = bone;
+        ctx.lineWidth = thick;
+        ctx.beginPath();
+        ctx.moveTo(x - dx, y - dy); ctx.lineTo(x + dx, y + dy);
+        ctx.stroke();
+        // Knuckle ends.
+        ctx.fillStyle = bone;
+        for (const s of [-1, 1]) {
+          const ex = x + dx * s, ey = y + dy * s;
+          const px = -Math.sin(ang) * thick * 0.5, py = Math.cos(ang) * thick * 0.5;
+          ctx.beginPath(); ctx.arc(ex + px, ey + py, thick * 0.62, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(ex - px, ey - py, thick * 0.62, 0, Math.PI * 2); ctx.fill();
+        }
+      };
+
+      const thick = Math.max(2, w * 0.045);
+      for (let i = 0; i < rng.int(4, 7); i++) {
+        longBone(
+          rng.float(w * 0.15, w * 0.85), rng.float(h * 0.2, h * 0.85),
+          rng.float(0, Math.PI * 2), w * rng.float(0.16, 0.3), thick * rng.float(0.8, 1.1),
+        );
+      }
+
+      // A rib cage: the silhouette that says "body" rather than "sticks".
+      const rx = w * 0.62, ry = h * 0.52, rw = w * 0.2, ribAng = rng.float(-0.6, 0.6);
+      ctx.save();
+      ctx.translate(rx, ry); ctx.rotate(ribAng);
+      ctx.strokeStyle = bone;
+      ctx.lineWidth = thick * 0.7;
+      for (let k = -2; k <= 2; k++) {
+        const off = k * rw * 0.26;
+        const span = rw * (1 - Math.abs(k) * 0.16);
+        ctx.beginPath();
+        ctx.arc(0, off, span * 0.55, Math.PI * 0.15, Math.PI * 0.85);
         ctx.stroke();
       }
+      ctx.restore();
       // Skull
       const sx = w * 0.4, sy = h * 0.5, r = w * 0.11;
       ctx.fillStyle = bone;
@@ -718,21 +756,45 @@ export const DUNGEON_ASSETS: AssetDef[] = [
       const { ctx, w, h, rng } = a;
       const rock = a.tint ? mix(a.palette.rock, a.tint, a.tintStrength) : a.palette.rock;
       const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42;
-      groundShadow(ctx, cx + R * 0.16, cy + R * 0.18, R * 0.9, R * 0.85, 0.34);
-      const n = rng.int(3, 6);
+      groundShadow(ctx, cx + R * 0.16, cy + R * 0.18, R * 0.95, R * 0.9, 0.36);
+
+      // Two or three spires big enough to read at map scale, plus a scatter of
+      // stubs. The previous version drew five cones at a tenth of the tile's
+      // width, which at any zoom a GM actually plays at was a grey smudge.
+      const spires: { x: number; y: number; r: number }[] = [];
+      const n = rng.int(2, 3);
       for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2 + rng.float(-0.5, 0.5);
+        const d = i === 0 ? R * 0.1 : R * rng.float(0.52, 0.74);
+        spires.push({
+          x: cx + Math.cos(ang) * d,
+          y: cy + Math.sin(ang) * d,
+          r: R * (i === 0 ? rng.float(0.42, 0.55) : rng.float(0.26, 0.4)),
+        });
+      }
+      for (let i = 0; i < rng.int(1, 2); i++) {
         const ang = rng.float(0, Math.PI * 2);
-        const d = R * Math.sqrt(rng.next()) * 0.7;
-        const px = cx + Math.cos(ang) * d;
-        const py = cy + Math.sin(ang) * d;
-        const r = R * rng.float(0.14, 0.3);
-        // Concentric rings read as a cone pointing at the viewer.
-        for (let k = 3; k >= 0; k--) {
-          const rr = r * (0.3 + k * 0.24);
-          const pts = blob(px, py, rr, rr * rng.float(0.85, 1.1), rng.int(5, 7), 0.14, rng);
-          fillPath(ctx, pts, mix(rock, k === 3 ? '#0f0d0b' : '#efe8dc', k === 3 ? 0.4 : (3 - k) * 0.14));
+        const d = R * rng.float(0.68, 0.9);
+        spires.push({ x: cx + Math.cos(ang) * d, y: cy + Math.sin(ang) * d, r: R * rng.float(0.1, 0.16) });
+      }
+
+      // Draw back to front so the near spires overlap the far ones.
+      spires.sort((p, q) => p.y - q.y);
+      for (const sp of spires) {
+        // Base, then tighter rings offset towards the light: a cone seen from
+        // above is a ring of shadow with a lit tip sitting off-centre in it.
+        for (let k = 4; k >= 0; k--) {
+          const t = k / 4;
+          const rr = sp.r * (0.1 + t * 0.9);
+          const ox = -sp.r * (1 - t) * 0.22;
+          const oy = -sp.r * (1 - t) * 0.26;
+          const shade = k === 4
+            ? mix(rock, '#100e0b', 0.5)
+            : mix(rock, '#fbf6ec', (4 - k) * 0.22);
+          const pts = blob(sp.x + ox, sp.y + oy, rr, rr * rng.float(0.88, 1.06), rng.int(6, 8), 0.12, rng);
+          fillPath(ctx, pts, shade);
         }
-        inkLine(ctx, blob(px, py, r, r, 6, 0.12, rng), rgba(ink(a), 0.45), Math.max(1, r * 0.08), true);
+        inkLine(ctx, blob(sp.x, sp.y, sp.r, sp.r, 7, 0.1, rng), rgba(ink(a), 0.5), Math.max(1, sp.r * 0.09), true);
       }
     },
   },
