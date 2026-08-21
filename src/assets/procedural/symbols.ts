@@ -384,7 +384,7 @@ export const SYMBOL_ASSETS: AssetDef[] = [
   },
   {
     id: 'mrk/numbered', label: 'Numbered Marker', group: 'markers', tags: ['key', 'room'],
-    aspect: 1, defaultWidth: 44, variants: 9,
+    aspect: 1, defaultWidth: 44, variants: 20,
     draw(a) {
       const { ctx, w, h } = a;
       const c = a.tint || a.palette.accent;
@@ -394,10 +394,16 @@ export const SYMBOL_ASSETS: AssetDef[] = [
       ctx.strokeStyle = rgba(a.palette.ink, 0.85);
       ctx.lineWidth = Math.max(1.5, r * 0.12);
       ctx.stroke();
+      // `variant` carries the key number itself, not a style index — a dungeon
+      // key runs to whatever the room count is, and the old `variant % 9` meant
+      // room 10 was stamped "1" alongside the real room 1.
+      const label = String(Math.max(0, Math.round(a.variant)) + 1);
       ctx.fillStyle = readableInk(c);
-      ctx.font = `700 ${r * 1.1}px Georgia, serif`;
+      // Shrink two- and three-digit numbers so they stay inside the disc.
+      const fit = label.length <= 1 ? 1.1 : label.length === 2 ? 0.86 : 0.66;
+      ctx.font = `700 ${r * fit}px Georgia, serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String((a.variant % 9) + 1), w / 2, h / 2 + r * 0.06);
+      ctx.fillText(label, w / 2, h / 2 + r * 0.06);
     },
   },
   {

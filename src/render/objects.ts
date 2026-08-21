@@ -57,7 +57,7 @@ function drawStamp(ctx: CanvasRenderingContext2D, o: StampObject, opts: DrawObje
     paletteId: o.palette || opts.paletteId,
     tint: o.tint,
     tintStrength: o.tintStrength,
-    variant: o.seed % 16,
+    variant: o.variant ?? (o.seed % 16),
   });
   ctx.drawImage(surf, -o.width / 2, -o.height / 2, o.width, o.height);
 }

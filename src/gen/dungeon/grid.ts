@@ -47,6 +47,11 @@ export interface DoorSpec {
   key: string;
   kind: 'door' | 'secretDoor';
   state: 'closed' | 'open' | 'locked';
+  /** Midpoint of the doorway, in grid cells. */
+  x: number;
+  y: number;
+  /** True when the doorway runs east-west (i.e. it is in a north or south wall). */
+  horizontal: boolean;
 }
 
 /**

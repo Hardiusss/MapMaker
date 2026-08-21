@@ -159,6 +159,7 @@ export function generateDungeon(opts: Partial<DungeonGenOptions> = {}): DungeonR
 
   const leafList = leaves(root);
   const rooms: Room[] = [];
+  const nextPurpose = purposeDealer(o.layout, rng);
 
   const corridorWidth = Math.max(o.corridorWidth, rules.minCorridor);
 
@@ -173,7 +174,7 @@ export function generateDungeon(opts: Partial<DungeonGenOptions> = {}): DungeonR
     const x = leaf.x + (rules.fillLeaves ? 1 : rng.int(1, Math.max(1, leaf.w - w - 1)));
     const y = leaf.y + (rules.fillLeaves ? 1 : rng.int(1, Math.max(1, leaf.h - h - 1)));
     const shape = pickShape(rng, w, h, o.layout);
-    const room: Room = { index: rooms.length, x, y, w, h, purpose: rng.pick(purposePool(o.layout)), shape };
+    const room: Room = { index: rooms.length, x, y, w, h, purpose: nextPurpose(), shape };
     rooms.push(room);
     leaf.room = room;
     carveRoom(g, room);
@@ -273,6 +274,7 @@ export function generateDungeon(opts: Partial<DungeonGenOptions> = {}): DungeonR
   const wl = doc.layers.find((l) => l.kind === 'wall');
   if (wl && wl.kind === 'wall') wl.walls = walls;
 
+  if (o.doors) drawDoors(doc, doors, o);
   if (o.furnish) furnishRooms(doc, rooms, o, rng);
   if (o.lights) lightRooms(doc, rooms, o, rng);
   if (o.labels) {
@@ -298,6 +300,27 @@ const PURPOSES_BY_LAYOUT: Partial<Record<DungeonLayout, string[]>> = {
 
 function purposePool(layout: DungeonLayout): string[] {
   return PURPOSES_BY_LAYOUT[layout] || ROOM_PURPOSES;
+}
+
+/**
+ * Deals room purposes without replacement.
+ *
+ * Picking independently at random gives a dungeon with two throne rooms and
+ * three kitchens roughly as often as not, and a GM reading the key has to
+ * decide which one the plot meant. Dealing from a shuffled deck and only
+ * reshuffling once it is empty keeps every purpose unique until there are more
+ * rooms than there are things for rooms to be.
+ */
+function purposeDealer(layout: DungeonLayout, rng: RNG): () => string {
+  const source = purposePool(layout);
+  let deck: string[] = [];
+  return () => {
+    if (!deck.length) {
+      deck = source.slice();
+      rng.shuffle(deck);
+    }
+    return deck.pop()!;
+  };
 }
 
 function pickShape(rng: RNG, w: number, h: number, layout: DungeonLayout): Room['shape'] {
@@ -408,6 +431,39 @@ function mirrorGrid(g: CellGrid, workCols: number): void {
   }
 }
 
+/**
+ * Draw the doors the wall tracer already knows about.
+ *
+ * `findDoors` has always fed `traceWalls`, so the exported Foundry scene had
+ * working, openable doors — but nothing put a door on the picture, so the map a
+ * GM prints or shares as an image showed every room standing wide open. The
+ * geometry is the same either way; this only renders it.
+ */
+function drawDoors(doc: MapDocument, doors: DoorSpec[], o: DungeonGenOptions): void {
+  const layer = doc.layers.find((l) => l.kind === 'object' && l.name === 'Doors & Stairs')
+    || objectLayerByRole(doc, 'features');
+  if (!layer || layer.kind !== 'object') return;
+
+  for (const d of doors) {
+    const asset = d.kind === 'secretDoor'
+      ? 'dgn/secret-door'
+      : d.state === 'locked' ? 'dgn/portcullis' : 'dgn/door';
+    // A door spans the opening and is thin across it. The assets are drawn
+    // lying east-west, so `makeStampAuto` keeps that proportion and a doorway
+    // in a side wall is turned a quarter turn — forcing them into a square box
+    // stretches a door leaf into a panel as tall as the corridor is wide.
+    layer.objects.push(makeStampAuto(asset, d.x * o.cell, d.y * o.cell, o.cell * 1.06, {
+      seed: Math.round(d.x * 131 + d.y * 977),
+      rotation: d.horizontal ? 0 : 90,
+      // Secret doors belong to the GM's copy of the map, not the players'.
+      opacity: d.kind === 'secretDoor' ? 0.85 : 1,
+      name: d.kind === 'secretDoor'
+        ? 'Secret door'
+        : d.state === 'locked' ? 'Locked door' : 'Door',
+    }));
+  }
+}
+
 /** Place doors where a corridor meets a room. */
 function findDoors(g: CellGrid, rooms: Room[], doors: DoorSpec[], rng: RNG, o: DungeonGenOptions): void {
   const perRoom = new Map<number, number>();
@@ -423,7 +479,7 @@ function findDoors(g: CellGrid, rooms: Room[], doors: DoorSpec[], rng: RNG, o: D
         [x - 1, y, 'v', x, y, x, y + 1],
         [x + 1, y, 'v', x + 1, y, x + 1, y + 1],
       ];
-      for (const [nx, ny, , ax, ay, bx, by] of neighbours) {
+      for (const [nx, ny, axis, ax, ay, bx, by] of neighbours) {
         if (!isOpen(g, nx, ny)) continue;
         const j = at(g, nx, ny);
         if (g.corridor[j]) continue;
@@ -440,6 +496,9 @@ function findDoors(g: CellGrid, rooms: Room[], doors: DoorSpec[], rng: RNG, o: D
           key,
           kind: secret ? 'secretDoor' : 'door',
           state: rng.bool(0.12) ? 'locked' : 'closed',
+          x: (ax + bx) / 2,
+          y: (ay + by) / 2,
+          horizontal: axis === 'h',
         });
       }
     }
@@ -482,6 +541,16 @@ const FURNISHING_BY_PURPOSE: Record<string, string[]> = {
 
 const GENERIC_FURNITURE = ['dgn/crate', 'dgn/barrel', 'dgn/rubble', 'dgn/table-round', 'dgn/chair', 'dgn/pillar', 'dgn/bones'];
 
+/** Pieces that occupy two squares rather than one. */
+const WIDE_FURNITURE = new Set(['dgn/table-long', 'dgn/bookshelf', 'dgn/altar', 'dgn/bed', 'dgn/sarcophagus', 'dgn/cage']);
+
+/** Pieces that belong against a wall rather than out in the middle of the floor. */
+const AGAINST_WALL = new Set([
+  'dgn/bookshelf', 'dgn/bed', 'dgn/chest', 'dgn/barrel', 'dgn/crate', 'dgn/anvil',
+  'dgn/cage', 'dgn/sarcophagus', 'dgn/statue', 'dgn/throne', 'dgn/brazier',
+  'dgn/rubble', 'dgn/bones',
+]);
+
 function furnishRooms(doc: MapDocument, rooms: Room[], o: DungeonGenOptions, rng: RNG): void {
   const layer = objectLayerByRole(doc, 'features');
   const doorLayer = doc.layers.find((l) => l.kind === 'object' && l.name === 'Doors & Stairs');
@@ -490,19 +559,47 @@ function furnishRooms(doc: MapDocument, rooms: Room[], o: DungeonGenOptions, rng
   for (const room of rooms) {
     const pool = FURNISHING_BY_PURPOSE[room.purpose] || GENERIC_FURNITURE;
     const area = room.w * room.h;
-    const count = Math.min(9, Math.max(1, Math.round(area / 9) + rng.int(-1, 2)));
+    // Roughly one piece per five squares, which reads as a used room without
+    // filling the floor a party has to fight across.
+    const count = Math.min(14, Math.max(2, Math.round(area / 5) + rng.int(-1, 2)));
     const used: Vec2[] = [];
+
     for (let i = 0; i < count; i++) {
-      const cx = room.x + rng.float(0.8, room.w - 0.8);
-      const cy = room.y + rng.float(0.8, room.h - 0.8);
-      if (used.some((u) => Math.hypot(u.x - cx, u.y - cy) < 1.1)) continue;
-      used.push({ x: cx, y: cy });
-      const assetId = rng.pick(rng.bool(0.75) ? pool : GENERIC_FURNITURE);
-      const cells = assetId === 'dgn/table-long' || assetId === 'dgn/bookshelf' ? 2 : 1;
+      const assetId = rng.pick(rng.bool(0.78) ? pool : GENERIC_FURNITURE);
+      const cells = WIDE_FURNITURE.has(assetId) ? 2 : 1;
       const w = o.cell * cells * rng.float(0.8, 1.05);
-      layer.objects.push(makeStamp(assetId, cx * o.cell, cy * o.cell, w, w, {
+
+      // Most furniture stands against a wall — beds, shelves, workbenches,
+      // altars. Scattering everything uniformly across the floor is the giveaway
+      // that nobody actually lives here.
+      const wallish = AGAINST_WALL.has(assetId) ? 0.85 : 0.35;
+      let placed: Vec2 | null = null;
+      let rotation = 0;
+
+      for (let attempt = 0; attempt < 8 && !placed; attempt++) {
+        let cx: number, cy: number;
+        if (rng.bool(wallish) && room.w > 2.6 && room.h > 2.6) {
+          const side = rng.int(0, 3);
+          const inset = 0.75;
+          if (side === 0) { cx = room.x + rng.float(1, room.w - 1); cy = room.y + inset; rotation = 180; }
+          else if (side === 1) { cx = room.x + room.w - inset; cy = room.y + rng.float(1, room.h - 1); rotation = 270; }
+          else if (side === 2) { cx = room.x + rng.float(1, room.w - 1); cy = room.y + room.h - inset; rotation = 0; }
+          else { cx = room.x + inset; cy = room.y + rng.float(1, room.h - 1); rotation = 90; }
+        } else {
+          cx = room.x + rng.float(0.8, room.w - 0.8);
+          cy = room.y + rng.float(0.8, room.h - 0.8);
+          rotation = rng.bool(0.5) ? rng.pick([0, 90, 180, 270]) : rng.float(-8, 8);
+        }
+        const clearance = cells > 1 ? 1.5 : 1.0;
+        if (used.some((u) => Math.hypot(u.x - cx, u.y - cy) < clearance)) continue;
+        placed = { x: cx, y: cy };
+      }
+      if (!placed) continue;
+      used.push(placed);
+
+      layer.objects.push(makeStamp(assetId, placed.x * o.cell, placed.y * o.cell, w, w, {
         seed: rng.int(1, 1e6),
-        rotation: rng.bool(0.5) ? rng.pick([0, 90, 180, 270]) : rng.float(-8, 8),
+        rotation: rotation + rng.float(-4, 4),
         shadow: { color: 'rgba(0,0,0,0.45)', blur: o.cell * 0.14, dx: o.cell * 0.04, dy: o.cell * 0.06 },
       }));
     }
@@ -558,7 +655,8 @@ function labelRooms(doc: MapDocument, rooms: Room[], o: DungeonGenOptions, rng: 
     const x = (c.x + 0.5) * o.cell;
     const y = (c.y + 0.5) * o.cell;
     layer.objects.push(makeStamp('mrk/numbered', x, y - o.cell * 0.1, o.cell * 0.7, o.cell * 0.7, {
-      seed: i % 9,
+      seed: i,
+      variant: i,
       name: `Room ${i + 1}`,
       tint: palette.accent,
       opacity: 0.95,

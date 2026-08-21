@@ -142,6 +142,14 @@ export interface StampObject extends ObjectBase {
   assetId: string;
   /** Per-instance seed so two copies of the same asset never look identical. */
   seed: number;
+  /**
+   * Pin a specific variant instead of deriving one from the seed.
+   *
+   * Most stamps want the seed-derived variant — that is what stops a forest of
+   * the same tree. A few carry data rather than style: a numbered room marker's
+   * variant *is* its number, and it must survive a reseed.
+   */
+  variant?: number;
   /** Base draw size in map px before scaleX/scaleY. */
   width: number;
   height: number;
