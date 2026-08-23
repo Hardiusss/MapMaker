@@ -6,6 +6,7 @@ import { isObjectLayer } from '../core/types';
 import { hitTest, objectBounds, objectsInRect } from '../core/objectBounds';
 import { rectOf } from '../core/geometry';
 import { rgba } from '../core/color';
+import { t } from '../i18n';
 
 type Mode = 'idle' | 'move' | 'marquee' | 'scale' | 'rotate';
 type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rot';
@@ -73,10 +74,10 @@ function snapshotSelection(editor: Editor): void {
 
 export const selectTool: Tool = {
   id: 'select',
-  label: 'Select & Transform',
+  get label() { return t('tool.select'); },
   shortcut: 'v',
   cursor: 'default',
-  hint: 'Click to select, drag to move. Handles scale; the top handle rotates. Shift adds to the selection.',
+  get hint() { return t('tool.select.hint'); },
 
   onPointerDown(c) {
     const { editor } = c;

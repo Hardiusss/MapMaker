@@ -4,29 +4,33 @@ import { useEditorEvents } from './useEditor';
 import type { Layer } from '../core/types';
 import { BLEND_MODES } from '../core/types';
 import { Section, Slider, SelectField } from './components/controls';
+import { useLang } from '../i18n/useLang';
+import { layerName } from '../i18n/display';
 import {
   IconEye, IconEyeOff, IconLock, IconPlus, IconTrash, IconCopy,
   IconUp, IconDown, IconMerge, IconImage, IconLayers,
 } from './components/Icons';
 
-const KIND_LABEL: Record<Layer['kind'], string> = {
-  raster: 'paint', object: 'objects', wall: 'walls', light: 'lights', note: 'notes',
+const KIND_KEY: Record<Layer['kind'], string> = {
+  raster: 'layerkind.raster', object: 'layerkind.object', wall: 'layerkind.wall',
+  light: 'layerkind.light', note: 'layerkind.note',
 };
 
 export function LayerPanel() {
   const editor = useEditorEvents('change');
+  const { t } = useLang();
   const doc = editor.doc;
   const active = editor.activeLayer;
 
   return (
     <>
       <Section
-        title="Layers"
+        title={t('panel.layers')}
         action={
           <span style={{ display: 'flex', gap: 3 }}>
-            <button className="btn ghost icon small" title="New paint layer"
+            <button className="btn ghost icon small" title={t('panel.newRasterLayer')}
               onClick={() => editor.addLayer('raster')}><IconImage size={14} /></button>
-            <button className="btn ghost icon small" title="New object layer"
+            <button className="btn ghost icon small" title={t('panel.newObjectLayer')}
               onClick={() => editor.addLayer('object')}><IconPlus size={14} /></button>
           </span>
         }
@@ -41,68 +45,70 @@ export function LayerPanel() {
               <span
                 className={`eye ${layer.visible ? 'on' : ''}`}
                 onClick={(e) => { e.stopPropagation(); editor.updateLayer(layer.id, { visible: !layer.visible }); }}
-                title={layer.visible ? 'Hide' : 'Show'}
+                title={layer.visible ? t('panel.hide') : t('panel.show')}
               >
                 {layer.visible ? <IconEye size={14} /> : <IconEyeOff size={14} />}
               </span>
-              <span className="name" title={layer.name}>{layer.name}</span>
+              <span className="name" title={layerName(layer.name)}>{layerName(layer.name)}</span>
               {layer.locked && <IconLock size={12} />}
-              {layer.gmOnly && <span className="pill" title="Excluded from player exports">GM</span>}
-              <span className="kind">{KIND_LABEL[layer.kind]}</span>
+              {layer.gmOnly && <span className="pill" title={t('panel.gmExcluded')}>{t('panel.gm')}</span>}
+              <span className="kind">{t(KIND_KEY[layer.kind])}</span>
             </div>
           ))}
         </div>
       </Section>
 
       {active && (
-        <Section title={`“${active.name}”`}>
+        <Section title={`“${layerName(active.name)}”`}>
           <div className="field">
-            <label>Name</label>
-            <input type="text" value={active.name}
+            <label>{t('panel.name')}</label>
+            {/* Shows the display name, but typing writes the raw string: a rename
+                is meant to replace the default, not to edit a translation of it. */}
+            <input type="text" value={layerName(active.name)}
               onChange={(e) => editor.updateLayer(active.id, { name: e.target.value })} />
           </div>
 
-          <Slider label="Opacity" value={active.opacity} min={0} max={1} step={0.01}
+          <Slider label={t('field.opacity')} value={active.opacity} min={0} max={1} step={0.01}
             onChange={(v) => editor.updateLayer(active.id, { opacity: v })}
             format={(v) => `${Math.round(v * 100)}%`} />
 
-          <SelectField label="Blend mode" value={active.blend}
+          <SelectField label={t('panel.blendMode')} value={active.blend}
             options={BLEND_MODES.map((b) => ({ value: b, label: b }))}
             onChange={(v) => editor.updateLayer(active.id, { blend: v })} />
 
           <div className="field-row" style={{ marginBottom: 10 }}>
-            <label>Locked</label>
+            <label>{t('panel.locked')}</label>
             <input type="checkbox" checked={active.locked}
               onChange={(e) => editor.updateLayer(active.id, { locked: e.target.checked })} />
           </div>
 
           {active.kind === 'raster' && (
             <div className="field-row" style={{ marginBottom: 10 }}>
-              <label>Clip to layer below</label>
+              <label>{t('panel.clipToBelow')}</label>
               <input type="checkbox" checked={active.clipToBelow}
                 onChange={(e) => editor.updateLayer(active.id, { clipToBelow: e.target.checked } as Partial<Layer>)} />
             </div>
           )}
 
           <div className="field-row" style={{ marginBottom: 10 }}>
-            <label title="Left out of player exports">GM only</label>
+            <label title={t('panel.gmOnlyHint')}>{t('panel.gmOnly')}</label>
             <input type="checkbox" checked={!!active.gmOnly}
               onChange={(e) => editor.updateLayer(active.id, { gmOnly: e.target.checked } as Partial<Layer>)} />
           </div>
 
           <div className="field-row" style={{ marginBottom: 10 }}>
-            <label>Solo (isolate)</label>
+            <label>{t('panel.solo')}</label>
             <input type="checkbox" checked={editor.view.soloLayerId === active.id}
               onChange={(e) => editor.setView({ soloLayerId: e.target.checked ? active.id : null })} />
           </div>
 
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <button className="btn small" title="Move up" onClick={() => editor.moveLayer(active.id, 1)}><IconUp size={13} /></button>
-            <button className="btn small" title="Move down" onClick={() => editor.moveLayer(active.id, -1)}><IconDown size={13} /></button>
-            <button className="btn small" title="Duplicate" onClick={() => editor.duplicateLayer(active.id)}><IconCopy size={13} /></button>
-            <button className="btn small" title="Merge down" onClick={() => editor.mergeLayerDown(active.id)}><IconMerge size={13} /></button>
-            <button className="btn small" onClick={() => editor.clearLayer(active.id)}>Clear</button>
-            <button className="btn small danger" title="Delete layer" onClick={() => editor.removeLayer(active.id)}><IconTrash size={13} /></button>
+            <button className="btn small" title={t('panel.moveUp')} onClick={() => editor.moveLayer(active.id, 1)}><IconUp size={13} /></button>
+            <button className="btn small" title={t('panel.moveDown')} onClick={() => editor.moveLayer(active.id, -1)}><IconDown size={13} /></button>
+            <button className="btn small" title={t('panel.duplicate')} onClick={() => editor.duplicateLayer(active.id)}><IconCopy size={13} /></button>
+            <button className="btn small" title={t('panel.mergeDown')} onClick={() => editor.mergeLayerDown(active.id)}><IconMerge size={13} /></button>
+            <button className="btn small" onClick={() => editor.clearLayer(active.id)}>{t('panel.clear')}</button>
+            <button className="btn small danger" title={t('panel.deleteLayer')} onClick={() => editor.removeLayer(active.id)}><IconTrash size={13} /></button>
           </div>
         </Section>
       )}

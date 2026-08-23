@@ -2,10 +2,12 @@
 import React from 'react';
 import { Modal, TextArea, TextField, ColorField, SelectField } from '../components/controls';
 import { useEditor } from '../useEditor';
+import { useLang } from '../../i18n/useLang';
 import type { TextObject } from '../../core/types';
 
 export function TextEditDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const editor = useEditor();
+  const { t } = useLang();
   const found = React.useMemo(() => {
     for (const l of editor.doc.layers) {
       if (l.kind !== 'object') continue;
@@ -24,19 +26,20 @@ export function TextEditDialog({ id, onClose }: { id: string; onClose: () => voi
   };
 
   return (
-    <Modal title="Edit Label" size="narrow" onClose={onClose}
+    <Modal title={t('dlg.text.title')} size="narrow" onClose={onClose}
       footer={<>
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={apply}>Apply</button>
+        <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
+        <button className="btn primary" onClick={apply}>{t('action.apply')}</button>
       </>}>
-      <TextArea label="Text" value={text} rows={3} onChange={setText} />
-      <p className="hint">Everything else about this label lives in the Inspect tab.</p>
+      <TextArea label={t('props.text')} value={text} rows={3} onChange={setText} />
+      <p className="hint">{t('dlg.text.hint')}</p>
     </Modal>
   );
 }
 
 export function NoteEditDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const editor = useEditor();
+  const { t } = useLang();
   const note = React.useMemo(() => {
     for (const l of editor.doc.layers) {
       if (l.kind !== 'note') continue;
@@ -58,23 +61,23 @@ export function NoteEditDialog({ id, onClose }: { id: string; onClose: () => voi
   };
 
   return (
-    <Modal title="GM Note" size="narrow" onClose={onClose}
+    <Modal title={t('tool.note')} size="narrow" onClose={onClose}
       footer={<>
         <button className="btn danger" onClick={() => {
           editor.mutate('Delete note', (d) => {
             for (const l of d.layers) if (l.kind === 'note') l.notes = l.notes.filter((n) => n.id !== id);
           });
           onClose();
-        }}>Delete</button>
+        }}>{t('action.delete')}</button>
         <span className="grow" />
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={apply}>Save</button>
+        <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
+        <button className="btn primary" onClick={apply}>{t('action.saveShort')}</button>
       </>}>
-      <TextField label="Title" value={title} onChange={setTitle} />
-      <TextArea label="Body" value={body} rows={6} onChange={setBody} />
-      <TextField label="Pin letter" value={icon} onChange={setIcon} />
-      <ColorField label="Pin colour" value={color} onChange={setColor} />
-      <p className="hint">Notes become Foundry journal pins on export.</p>
+      <TextField label={t('field.title')} value={title} onChange={setTitle} />
+      <TextArea label={t('dlg.note.body')} value={body} rows={6} onChange={setBody} />
+      <TextField label={t('dlg.note.pinLetter')} value={icon} onChange={setIcon} />
+      <ColorField label={t('dlg.note.pinColour')} value={color} onChange={setColor} />
+      <p className="hint">{t('dlg.note.hint')}</p>
     </Modal>
   );
 }

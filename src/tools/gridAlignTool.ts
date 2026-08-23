@@ -10,6 +10,7 @@ import type { Editor } from '../core/editor';
 import type { Vec2, Rect } from '../core/types';
 import { rectOf } from '../core/geometry';
 import { rgba } from '../core/color';
+import { t } from '../i18n';
 
 export interface GridAlignSettings {
   /** How many cells the dragged box spans. */
@@ -49,14 +50,18 @@ function apply(editor: Editor, r: Rect): void {
       snap: true,
     };
   });
-  editor.status(`Grid set to ${size.toFixed(1)} px per cell — ${(editor.doc.width / size).toFixed(1)} × ${(editor.doc.height / size).toFixed(1)} cells.`);
+  editor.status(t('tool.status.gridSet', {
+    size: size.toFixed(1),
+    cols: (editor.doc.width / size).toFixed(1),
+    rows: (editor.doc.height / size).toFixed(1),
+  }));
 }
 
 export const gridAlignTool: Tool = {
   id: 'gridalign',
-  label: 'Align Grid',
+  get label() { return t('tool.gridAlign'); },
   cursor: 'crosshair',
-  hint: 'Set how many cells the box spans, then drag a box over exactly that many squares of the artwork.',
+  get hint() { return t('tool.gridAlign.hint'); },
   onActivate(editor) { editor.setView({ showGrid: true }); },
   onPointerDown(c) {
     if (c.button !== 0) return;

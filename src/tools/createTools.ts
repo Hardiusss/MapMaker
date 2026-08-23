@@ -7,6 +7,7 @@ import { assetById } from '../assets/library';
 import { rectOf } from '../core/geometry';
 import { rgba } from '../core/color';
 import { renderAsset } from '../assets/library';
+import { t } from '../i18n';
 
 // ---------------------------------------------------------------------------
 // Stamp
@@ -58,10 +59,10 @@ function placeStamp(editor: Editor, at: Vec2, width?: number): void {
 
 export const stampTool: Tool = {
   id: 'stamp',
-  label: 'Stamp',
+  get label() { return t('tool.stamp'); },
   shortcut: 's',
   cursor: 'copy',
-  hint: 'Click to place the selected asset. Hold and drag with Spray on to scatter a line of them.',
+  get hint() { return t('tool.stamp.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
     stampDrag = { start: c.map, current: c.map, active: true };
@@ -136,10 +137,9 @@ export const textSettings: TextSettings = {
 
 export const textTool: Tool = {
   id: 'text',
-  label: 'Label',
-  shortcut: 't',
+  get label() { return t('tool.text'); },
   cursor: 'text',
-  hint: 'Click to drop a label, then type in the properties panel.',
+  get hint() { return t('tool.text.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
     const o = makeText('New Label', c.map.x, c.map.y, c.editor.paletteId, {
@@ -187,10 +187,10 @@ let shapeDrag: { start: Vec2; current: Vec2 } | null = null;
 
 export const shapeTool: Tool = {
   id: 'shape',
-  label: 'Shape',
+  get label() { return t('tool.shape'); },
   shortcut: 'r',
   cursor: 'crosshair',
-  hint: 'Drag to draw. Shift constrains to a square/circle, Alt draws from the centre.',
+  get hint() { return t('tool.shape.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
     shapeDrag = { start: c.editor.snap(c.map), current: c.map };
@@ -296,10 +296,10 @@ function commitPath(editor: Editor): void {
 
 export const pathTool: Tool = {
   id: 'path',
-  label: 'River / Road',
+  get label() { return t('tool.path'); },
   shortcut: 'p',
   cursor: 'crosshair',
-  hint: 'Click to add points, double-click or press Enter to finish. Esc cancels.',
+  get hint() { return t('tool.path.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
     c.editor.overlayDraw = drawPathOverlay;
@@ -380,10 +380,9 @@ export const tokenSettings: TokenSettings = {
 
 export const tokenTool: Tool = {
   id: 'token',
-  label: 'Token',
-  shortcut: 'k',
+  get label() { return t('tool.token'); },
   cursor: 'crosshair',
-  hint: 'Drop creature markers. They export as a separate layer so the VTT can ignore them.',
+  get hint() { return t('tool.token.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
     const p = c.editor.snap(c.map, 'cell');

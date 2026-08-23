@@ -8,19 +8,17 @@ import {
 } from '../../export';
 import { DEFAULT_FOUNDRY_OPTIONS, type FoundryExportOptions, slug } from '../../export/foundry';
 import { DEFAULT_PDF_OPTIONS, type PdfOptions, type PageSize } from '../../export/pdf';
+import { useLang } from '../../i18n/useLang';
 
 export type ExportFormat = 'png' | 'foundry' | 'uvtt' | 'roll20' | 'pdf';
 
-const FORMATS: { id: ExportFormat; label: string; blurb: string }[] = [
-  { id: 'png', label: 'Image', blurb: 'PNG, JPEG or WebP at any resolution. For printing, VTT uploads or sharing.' },
-  { id: 'foundry', label: 'Foundry VTT', blurb: 'Scene JSON + image. Walls, doors, lights and note pins come across.' },
-  { id: 'uvtt', label: 'Universal VTT', blurb: '.dd2vtt with the image embedded — line of sight, portals and lights.' },
-  { id: 'roll20', label: 'Roll20', blurb: '70 px/cell image plus page settings and dynamic-lighting paths.' },
-  { id: 'pdf', label: 'Print PDF', blurb: 'Single page, or tiled across sheets at true 1-inch-per-square scale.' },
-];
+// Only the ids live here; the label and blurb are looked up at render time so
+// that a language switch with the dialog open repaints the cards too.
+const FORMATS: ExportFormat[] = ['png', 'foundry', 'uvtt', 'roll20', 'pdf'];
 
 export function ExportDialog({ initial, onClose }: { initial?: ExportFormat; onClose: () => void }) {
   const editor = useEditor();
+  const { t } = useLang();
   const doc = editor.doc;
   const [format, setFormat] = React.useState<ExportFormat>(initial || 'png');
   const [busy, setBusy] = React.useState(false);
@@ -60,13 +58,13 @@ export function ExportDialog({ initial, onClose }: { initial?: ExportFormat; onC
 
       if (res.cancelled) setResult(null);
       else {
-        setResult(res.path || 'Saved');
-        editor.status(`Exported to ${res.path}`);
+        setResult(res.path || t('export.saved'));
+        editor.status(t('export.status.done', { path: res.path ?? '' }));
       }
     } catch (err) {
       console.error(err);
-      editor.status(`Export failed: ${(err as Error).message}`);
-      setResult(`Failed: ${(err as Error).message}`);
+      editor.status(t('export.status.failed', { error: (err as Error).message }));
+      setResult(t('export.result.failed', { error: (err as Error).message }));
     } finally {
       setBusy(false);
     }
@@ -81,163 +79,166 @@ export function ExportDialog({ initial, onClose }: { initial?: ExportFormat; onC
 
   return (
     <Modal
-      title="Export"
+      title={t('action.export')}
       size="wide"
       onClose={onClose}
       footer={
         <>
           <span className="grow hint">
-            {result ? `Saved: ${result}` : isDesktop() ? 'A native save dialog will open.' : 'The file will download to your browser.'}
+            {result
+              ? t('export.savedTo', { path: result })
+              : isDesktop() ? t('export.nativeDialog') : t('export.browserDownload')}
           </span>
-          <button className="btn" onClick={onClose}>Close</button>
-          <button className="btn primary" onClick={run} disabled={busy}>{busy ? 'Exporting…' : 'Export'}</button>
+          <button className="btn" onClick={onClose}>{t('action.close')}</button>
+          <button className="btn primary" onClick={run} disabled={busy}>
+            {busy ? t('export.busy') : t('action.export')}
+          </button>
         </>
       }
     >
       <div className="card-grid" style={{ marginBottom: 18 }}>
-        {FORMATS.map((f) => (
-          <div key={f.id} className={`card ${format === f.id ? 'active' : ''}`} onClick={() => setFormat(f.id)}>
-            <h4>{f.label}</h4>
-            <p>{f.blurb}</p>
+        {FORMATS.map((id) => (
+          <div key={id} className={`card ${format === id ? 'active' : ''}`} onClick={() => setFormat(id)}>
+            <h4>{t(`export.fmt.${id}`)}</h4>
+            <p>{t(`export.fmt.${id}.blurb`)}</p>
           </div>
         ))}
       </div>
 
       <div className="grid-2">
         <div>
-          <Section title="Image">
+          <Section title={t('export.section.image')}>
             <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
-              <button className="btn small" onClick={() => setPreset('web')}>Web</button>
-              <button className="btn small" onClick={() => setPreset('print')}>Print 300dpi</button>
-              <button className="btn small" onClick={() => setPreset('foundry')}>Foundry 1:1</button>
-              <button className="btn small" onClick={() => setPreset('roll20')}>Roll20 70px/cell</button>
+              <button className="btn small" onClick={() => setPreset('web')}>{t('export.preset.web')}</button>
+              <button className="btn small" onClick={() => setPreset('print')}>{t('export.preset.print')}</button>
+              <button className="btn small" onClick={() => setPreset('foundry')}>{t('export.preset.foundry')}</button>
+              <button className="btn small" onClick={() => setPreset('roll20')}>{t('export.preset.roll20')}</button>
             </div>
-            <Slider label="Resolution" value={img.scale} min={0.1} max={4} step={0.05}
+            <Slider label={t('export.resolution')} value={img.scale} min={0.1} max={4} step={0.05}
               onChange={(v) => setImg({ ...img, scale: v })} format={(v) => `${Math.round(v * 100)}%`} />
             <p className="hint" style={{ marginTop: -4, marginBottom: 10 }}>
-              Output: {outW} × {outH} px ({megapixels.toFixed(1)} MP)
-              {megapixels > 60 && <strong style={{ color: 'var(--accent)' }}> — very large, may be slow</strong>}
+              {t('export.output', { w: outW, h: outH, mp: megapixels.toFixed(1) })}
+              {megapixels > 60 && <strong style={{ color: 'var(--accent)' }}>{t('export.veryLarge')}</strong>}
             </p>
             {format !== 'uvtt' && format !== 'roll20' && (
-              <SelectField label="File format" value={img.format}
-                options={[{ value: 'png', label: 'PNG (lossless)' }, { value: 'jpg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }] as { value: ImageExportOptions['format']; label: string }[]}
+              <SelectField label={t('export.fileFormat')} value={img.format}
+                options={[{ value: 'png', label: t('export.png') }, { value: 'jpg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }] as { value: ImageExportOptions['format']; label: string }[]}
                 onChange={(v) => setImg({ ...img, format: v })} />
             )}
             {img.format !== 'png' && (
-              <Slider label="Quality" value={img.quality} min={0.4} max={1} step={0.02}
+              <Slider label={t('export.quality')} value={img.quality} min={0.4} max={1} step={0.02}
                 onChange={(v) => setImg({ ...img, quality: v })} format={(v) => `${Math.round(v * 100)}%`} />
             )}
-            <SelectField label="Audience" value={img.audience}
+            <SelectField label={t('export.audience')} value={img.audience}
               options={[
-                { value: 'gm', label: 'GM — everything' },
-                { value: 'player', label: 'Players — hide GM-only layers' },
+                { value: 'gm', label: t('export.audience.gm') },
+                { value: 'player', label: t('export.audience.player') },
               ] as { value: 'gm' | 'player'; label: string }[]}
               onChange={(v) => setImg({ ...img, audience: v, includeNotes: v === 'gm' && img.includeNotes })} />
             {img.audience === 'player' && (
               <p className="hint" style={{ marginTop: -4, marginBottom: 8 }}>
-                Layers marked GM-only in the Layers panel are left out, and the filename
-                gets a <code>-player</code> suffix so the two versions never get mixed up.
+                {t('export.playerHint')}
               </p>
             )}
-            <Toggle label="Draw grid" value={img.includeGrid} onChange={(v) => setImg({ ...img, includeGrid: v })} />
-            <Toggle label="Draw walls (GM reference)" value={img.includeWalls} onChange={(v) => setImg({ ...img, includeWalls: v })} />
-            <Toggle label="Draw light markers" value={img.includeLights} onChange={(v) => setImg({ ...img, includeLights: v })} />
-            <Toggle label="Draw note pins" value={img.includeNotes} onChange={(v) => setImg({ ...img, includeNotes: v })} />
-            <Toggle label="Bake lighting into the image" value={img.bakedLighting}
+            <Toggle label={t('export.drawGrid')} value={img.includeGrid} onChange={(v) => setImg({ ...img, includeGrid: v })} />
+            <Toggle label={t('export.drawWalls')} value={img.includeWalls} onChange={(v) => setImg({ ...img, includeWalls: v })} />
+            <Toggle label={t('export.drawLights')} value={img.includeLights} onChange={(v) => setImg({ ...img, includeLights: v })} />
+            <Toggle label={t('export.drawNotes')} value={img.includeNotes} onChange={(v) => setImg({ ...img, includeNotes: v })} />
+            <Toggle label={t('export.bakeLighting')} value={img.bakedLighting}
               onChange={(v) => setImg({ ...img, bakedLighting: v })} />
             {img.bakedLighting && (
-              <p className="hint">Lights are burned into the picture and left out of the VTT data.</p>
+              <p className="hint">{t('export.bakeHint')}</p>
             )}
           </Section>
         </div>
 
         <div>
           {format === 'foundry' && (
-            <Section title="Foundry VTT">
-              <TextField label="Background image path in Foundry" value={foundry.imagePath}
+            <Section title={t('export.fmt.foundry')}>
+              <TextField label={t('export.foundry.imagePath')} value={foundry.imagePath}
                 onChange={(v) => setFoundry({ ...foundry, imagePath: v })} />
-              <SelectField label="Target version" value={String(foundry.version)}
+              <SelectField label={t('export.foundry.version')} value={String(foundry.version)}
                 options={[{ value: '13', label: 'v13' }, { value: '12', label: 'v12' }, { value: '11', label: 'v11 / v10' }]}
                 onChange={(v) => setFoundry({ ...foundry, version: Number(v) as 11 | 12 | 13 })} />
-              <Slider label="Scene padding" value={foundry.padding} min={0} max={0.5} step={0.05}
+              <Slider label={t('export.foundry.padding')} value={foundry.padding} min={0} max={0.5} step={0.05}
                 onChange={(v) => setFoundry({ ...foundry, padding: v })} />
-              <Toggle label="Token vision" value={foundry.tokenVision} onChange={(v) => setFoundry({ ...foundry, tokenVision: v })} />
-              <Toggle label="Fog exploration" value={foundry.fogExploration} onChange={(v) => setFoundry({ ...foundry, fogExploration: v })} />
-              <Toggle label="Include tokens" value={foundry.includeTokens} onChange={(v) => setFoundry({ ...foundry, includeTokens: v })} />
-              <Toggle label="Show in navigation bar" value={foundry.navigation} onChange={(v) => setFoundry({ ...foundry, navigation: v })} />
+              <Toggle label={t('export.foundry.tokenVision')} value={foundry.tokenVision} onChange={(v) => setFoundry({ ...foundry, tokenVision: v })} />
+              <Toggle label={t('export.foundry.fog')} value={foundry.fogExploration} onChange={(v) => setFoundry({ ...foundry, fogExploration: v })} />
+              <Toggle label={t('export.foundry.tokens')} value={foundry.includeTokens} onChange={(v) => setFoundry({ ...foundry, includeTokens: v })} />
+              <Toggle label={t('export.foundry.nav')} value={foundry.navigation} onChange={(v) => setFoundry({ ...foundry, navigation: v })} />
               <p className="hint">
-                You get a .zip with the image, the scene JSON and a short README.
-                Drop the image in your world's folder and use Scenes → Import Data.
+                {t('export.foundry.hint')}
               </p>
             </Section>
           )}
 
           {format === 'uvtt' && (
-            <Section title="Universal VTT">
+            <Section title={t('export.fmt.uvtt')}>
               <p className="hint">
-                The image is embedded inside the .dd2vtt, so it is a single file.
-                Wall segments are chained into polylines and doors become portals.
+                {t('export.uvtt.hint')}
               </p>
               <p className="hint" style={{ marginTop: 8 }}>
-                Grid must divide the image evenly. Current map:
-                {' '}{(doc.width / doc.grid.size).toFixed(2)} × {(doc.height / doc.grid.size).toFixed(2)} cells
+                {t('export.uvtt.grid', {
+                  cols: (doc.width / doc.grid.size).toFixed(2),
+                  rows: (doc.height / doc.grid.size).toFixed(2),
+                })}
                 {(doc.width % doc.grid.size !== 0 || doc.height % doc.grid.size !== 0) && (
-                  <strong style={{ color: 'var(--accent)' }}> — not a whole number; some VTTs will complain.</strong>
+                  <strong style={{ color: 'var(--accent)' }}>{t('export.uvtt.warn')}</strong>
                 )}
               </p>
             </Section>
           )}
 
           {format === 'roll20' && (
-            <Section title="Roll20">
+            <Section title={t('export.fmt.roll20')}>
               <p className="hint">
-                Roll20 works in 70 px units. The bundle contains the image rescaled to
-                70 px per cell, the exact Page Settings numbers, and the wall paths as JSON
-                for the community wall-import API scripts.
+                {t('export.roll20.hint')}
               </p>
             </Section>
           )}
 
           {format === 'pdf' && (
-            <Section title="Print">
-              <SelectField label="Page size" value={pdf.page}
+            <Section title={t('export.pdf.section')}>
+              <SelectField label={t('export.pdf.pageSize')} value={pdf.page}
                 options={[
-                  { value: 'fit', label: 'Fit page to map' },
+                  { value: 'fit', label: t('export.pdf.fit') },
                   { value: 'a4', label: 'A4' }, { value: 'a3', label: 'A3' },
                   { value: 'letter', label: 'Letter' }, { value: 'tabloid', label: 'Tabloid' },
                 ] as { value: PageSize; label: string }[]}
                 onChange={(v) => setPdf({ ...pdf, page: v })} />
-              <Toggle label="Landscape" value={pdf.landscape} onChange={(v) => setPdf({ ...pdf, landscape: v })} />
-              <Toggle label="Tile across pages (battle-map scale)" value={pdf.tiled}
+              <Toggle label={t('export.pdf.landscape')} value={pdf.landscape} onChange={(v) => setPdf({ ...pdf, landscape: v })} />
+              <Toggle label={t('export.pdf.tiled')} value={pdf.tiled}
                 onChange={(v) => setPdf({ ...pdf, tiled: v })} />
               {pdf.tiled && (
                 <>
-                  <NumberField label="Inches per grid cell" value={pdf.inchesPerCell} min={0.25} max={3} step={0.05}
+                  <NumberField label={t('export.pdf.inchesPerCell')} value={pdf.inchesPerCell} min={0.25} max={3} step={0.05}
                     onChange={(v) => setPdf({ ...pdf, inchesPerCell: v })} />
-                  <NumberField label="Overlap" value={pdf.overlap} min={0} max={72} suffix="pt"
+                  <NumberField label={t('export.pdf.overlap')} value={pdf.overlap} min={0} max={72} suffix={t('field.pt')}
                     onChange={(v) => setPdf({ ...pdf, overlap: v })} />
-                  <Toggle label="Crop marks" value={pdf.cropMarks} onChange={(v) => setPdf({ ...pdf, cropMarks: v })} />
+                  <Toggle label={t('export.pdf.cropMarks')} value={pdf.cropMarks} onChange={(v) => setPdf({ ...pdf, cropMarks: v })} />
                   <p className="hint">
-                    A {Math.round(doc.width / doc.grid.size)} × {Math.round(doc.height / doc.grid.size)} cell map at
-                    {' '}{pdf.inchesPerCell}" per square prints about
-                    {' '}{Math.ceil((doc.width / doc.grid.size) * pdf.inchesPerCell / 7.5)} ×
-                    {' '}{Math.ceil((doc.height / doc.grid.size) * pdf.inchesPerCell / 10)} sheets.
+                    {t('export.pdf.sheets', {
+                      cols: Math.round(doc.width / doc.grid.size),
+                      rows: Math.round(doc.height / doc.grid.size),
+                      inches: pdf.inchesPerCell,
+                      sw: Math.ceil((doc.width / doc.grid.size) * pdf.inchesPerCell / 7.5),
+                      sh: Math.ceil((doc.height / doc.grid.size) * pdf.inchesPerCell / 10),
+                    })}
                   </p>
                 </>
               )}
-              <NumberField label="Margin" value={pdf.margin} min={0} max={72} suffix="pt"
+              <NumberField label={t('export.pdf.margin')} value={pdf.margin} min={0} max={72} suffix={t('field.pt')}
                 onChange={(v) => setPdf({ ...pdf, margin: v })} />
             </Section>
           )}
 
           {format === 'png' && (
-            <Section title="Notes">
+            <Section title={t('export.notes')}>
               <p className="hint">
-                For a VTT, export at 1:1 with the grid switched off — the table draws its own grid,
-                and a baked grid that is a pixel out is very hard to unsee.
+                {t('export.notes.vtt')}
               </p>
               <p className="hint" style={{ marginTop: 8 }}>
-                For print, 300 dpi is 3.125× the on-screen size; the “Print 300dpi” preset sets that up.
+                {t('export.notes.print')}
               </p>
             </Section>
           )}

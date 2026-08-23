@@ -1,6 +1,7 @@
 /** Small, shared form controls. */
 import React from 'react';
 import { IconClose } from './Icons';
+import { useLang } from '../../i18n/useLang';
 
 export function Modal({
   title, onClose, children, footer, size = 'default',
@@ -11,6 +12,8 @@ export function Modal({
   footer?: React.ReactNode;
   size?: 'narrow' | 'default' | 'wide';
 }) {
+  const { t } = useLang();
+
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -22,7 +25,7 @@ export function Modal({
       <div className={`modal ${size === 'default' ? '' : size}`}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="btn ghost icon" onClick={onClose} title="Close"><IconClose size={16} /></button>
+          <button className="btn ghost icon" onClick={onClose} title={t('action.close')}><IconClose size={16} /></button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}

@@ -7,6 +7,7 @@ import { measureDistance } from '../render/grid';
 import { WALL_COLORS } from '../render/renderer';
 import { rgba } from '../core/color';
 import { pointSegmentDistance, dist } from '../core/geometry';
+import { t } from '../i18n';
 
 // ---------------------------------------------------------------------------
 // Walls
@@ -40,10 +41,10 @@ function snapWall(editor: Editor, p: Vec2): Vec2 {
 
 export const wallTool: Tool = {
   id: 'wall',
-  label: 'Walls & Doors',
+  get label() { return t('tool.wall'); },
   shortcut: 'w',
   cursor: 'crosshair',
-  hint: 'Click to start a wall, click again to finish. Chain mode keeps going. Esc ends the run.',
+  get hint() { return t('tool.wall.hint'); },
   onActivate(editor) { editor.setView({ showWalls: true }); },
   onPointerDown(c) {
     if (c.button !== 0) return;
@@ -114,10 +115,10 @@ export const lightSettings: LightSettings = {
 
 export const lightTool: Tool = {
   id: 'light',
-  label: 'Lighting',
+  get label() { return t('tool.light'); },
   shortcut: 'l',
   cursor: 'crosshair',
-  hint: 'Place light sources. Radii are in grid units and export straight to Foundry.',
+  get hint() { return t('tool.light.hint'); },
   onActivate(editor) { editor.setView({ showLights: true }); },
   onPointerDown(c) {
     if (c.button !== 0) return;
@@ -141,10 +142,10 @@ export const lightTool: Tool = {
 
 export const noteTool: Tool = {
   id: 'note',
-  label: 'GM Note',
+  get label() { return t('tool.note'); },
   shortcut: 'n',
   cursor: 'crosshair',
-  hint: 'Pin a note. Notes export as Foundry journal pins.',
+  get hint() { return t('tool.note.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
     const n = makeNote(c.map.x, c.map.y, 'New Note');
@@ -162,16 +163,16 @@ let measureB: Vec2 | null = null;
 
 export const measureTool: Tool = {
   id: 'measure',
-  label: 'Measure',
+  get label() { return t('tool.measure'); },
   shortcut: 'm',
   cursor: 'crosshair',
-  hint: 'Drag to measure distance in grid units.',
+  get hint() { return t('tool.measure.hint'); },
   onPointerDown(c) { measureA = c.map; measureB = c.map; c.editor.emitChange(); },
   onPointerMove(c) { if (measureA) { measureB = c.map; c.editor.emitChange(); } },
   onPointerUp(c) {
     if (measureA && measureB) {
       const d = measureDistance(measureA, measureB, c.editor.doc.grid);
-      c.editor.status(`Distance: ${d.label} (${d.cells.toFixed(1)} cells)`);
+      c.editor.status(t('tool.status.distance', { label: d.label, cells: d.cells.toFixed(1) }));
     }
   },
   onKeyDown(c) {
@@ -216,10 +217,10 @@ let panLast: Vec2 | null = null;
 
 export const panTool: Tool = {
   id: 'pan',
-  label: 'Pan',
+  get label() { return t('tool.pan'); },
   shortcut: 'h',
   cursor: 'grab',
-  hint: 'Drag to move the view. Space temporarily activates this from any tool.',
+  get hint() { return t('tool.pan.hint'); },
   onPointerDown(c) { panning = true; panLast = c.screen; },
   onPointerMove(c) {
     if (!panning || !panLast) return;

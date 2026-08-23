@@ -10,15 +10,16 @@ import { pointToHex, hexCenter, hexCorners } from '../render/grid';
 import { boundsOf } from '../core/geometry';
 import { snapshotRect, clampRect } from '../core/history';
 import { toHex } from '../core/color';
+import { t } from '../i18n';
 
 function beginStroke(c: PointerCtx, erase: boolean): void {
   const { editor } = c;
   const layer = editor.activeRaster;
   if (!layer) {
-    editor.status('Select a paint layer first — object layers cannot be painted on.');
+    editor.status(t('tool.status.needPaintLayer'));
     return;
   }
-  if (layer.locked) { editor.status('That layer is locked.'); return; }
+  if (layer.locked) { editor.status(t('tool.status.layerLocked')); return; }
 
   const settings = erase ? { ...editor.brush, mode: 'erase' as const } : editor.brush;
   editor.stroke = new BrushStroke(
@@ -46,10 +47,10 @@ function endStroke(editor: PointerCtx['editor'], label: string): void {
 
 export const brushTool: Tool = {
   id: 'brush',
-  label: 'Terrain Brush',
+  get label() { return t('tool.brush'); },
   shortcut: 'b',
   cursor: 'crosshair',
-  hint: 'Paint terrain. [ and ] change size, Shift+drag paints a straight line.',
+  get hint() { return t('tool.brush.hint'); },
   onPointerDown(c) { if (c.button === 0) beginStroke(c, false); },
   onPointerMove(c) {
     if (!c.editor.stroke) return;
@@ -61,10 +62,10 @@ export const brushTool: Tool = {
 
 export const eraserTool: Tool = {
   id: 'eraser',
-  label: 'Eraser',
+  get label() { return t('tool.eraser'); },
   shortcut: 'e',
   cursor: 'crosshair',
-  hint: 'Erase from the active paint layer.',
+  get hint() { return t('tool.eraser.hint'); },
   onPointerDown(c) { if (c.button === 0) beginStroke(c, true); },
   onPointerMove(c) {
     if (!c.editor.stroke) return;
@@ -85,7 +86,7 @@ export const eraserTool: Tool = {
 function floodFill(c: PointerCtx): void {
   const { editor } = c;
   const layer = editor.activeRaster;
-  if (!layer || layer.locked) { editor.status('Flood fill needs an unlocked paint layer.'); return; }
+  if (!layer || layer.locked) { editor.status(t('tool.status.fillNeedsLayer')); return; }
 
   const W = layer.surface.width, H = layer.surface.height;
   const sx = Math.round(c.map.x), sy = Math.round(c.map.y);
@@ -193,7 +194,7 @@ const paintedCells = new Set<string>();
 function fillAll(c: PointerCtx): void {
   const { editor } = c;
   const layer = editor.activeRaster;
-  if (!layer || layer.locked) { editor.status('Flood fill needs an unlocked paint layer.'); return; }
+  if (!layer || layer.locked) { editor.status(t('tool.status.fillNeedsLayer')); return; }
   const b = editor.brush;
   editor.paint('Fill Layer', layer, { x: 0, y: 0, w: layer.surface.width, h: layer.surface.height }, () => {
     const ctx = ctxOf(layer.surface);
@@ -216,17 +217,17 @@ function fillAll(c: PointerCtx): void {
 
 export const fillTool: Tool = {
   id: 'fill',
-  label: 'Fill',
+  get label() { return t('tool.fill'); },
   shortcut: 'g',
   cursor: 'crosshair',
-  hint: 'Flood a region, paint single grid cells, or cover the whole layer — pick the mode in the options bar.',
+  get hint() { return t('tool.fill.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
     if (fillSettings.mode === 'all') { fillAll(c); return; }
     if (fillSettings.mode === 'cell') {
       const layer = c.editor.activeRaster;
-      if (!layer) { c.editor.status('Cell fill needs a paint layer.'); return; }
-      if (c.editor.doc.grid.type === 'none') { c.editor.status('Cell fill needs a grid — turn one on in the Map tab.'); return; }
+      if (!layer) { c.editor.status(t('tool.status.cellFillNeedsLayer')); return; }
+      if (c.editor.doc.grid.type === 'none') { c.editor.status(t('tool.status.cellFillNeedsGrid')); return; }
       cellDragging = true;
       paintedCells.clear();
       // One undo step for the whole drag, however many cells it covers.
@@ -330,10 +331,10 @@ function paintPolygon(editor: PointerCtx['editor'], surface: HTMLCanvasElement, 
 
 export const eyedropperTool: Tool = {
   id: 'eyedropper',
-  label: 'Eyedropper',
+  get label() { return t('tool.eyedropper'); },
   shortcut: 'i',
   cursor: 'crosshair',
-  hint: 'Sample a colour from the flattened map into the brush.',
+  get hint() { return t('tool.eyedropper.hint'); },
   onPointerDown(c) {
     const { editor } = c;
     const x = Math.round(c.map.x), y = Math.round(c.map.y);
@@ -356,9 +357,9 @@ export const eyedropperTool: Tool = {
       if (d[i + 3] < 8) continue;
       r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
     }
-    if (!n) { editor.status('Nothing to sample there.'); return; }
+    if (!n) { editor.status(t('tool.status.nothingToSample')); return; }
     const hex = toHex({ r: r / n, g: g / n, b: b / n, a: 1 });
     editor.setBrush({ color: hex, mode: 'color' });
-    editor.status(`Sampled ${hex}`);
+    editor.status(t('tool.status.sampled', { hex }));
   },
 };

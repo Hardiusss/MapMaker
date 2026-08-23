@@ -5,12 +5,15 @@ import { useEditor } from '../useEditor';
 import { documentFromImage, imageAsLayer, guessGridSize } from '../../core/importImage';
 import { createSurface, ctxOf, loadImage } from '../../util/canvas';
 import { PALETTES } from '../../core/color';
+import { useLang } from '../../i18n/useLang';
+import { paletteName } from '../../i18n/display';
 
 export function ImportImageDialog({ onClose }: { onClose: () => void }) {
   const editor = useEditor();
+  const { t } = useLang();
   const [dataUrl, setDataUrl] = React.useState<string | null>(null);
   const [dims, setDims] = React.useState<{ w: number; h: number } | null>(null);
-  const [name, setName] = React.useState('Imported Map');
+  const [name, setName] = React.useState(t('dlg.import.defaultName'));
   const [cell, setCell] = React.useState(70);
   const [confidence, setConfidence] = React.useState(0);
   const [detecting, setDetecting] = React.useState(false);
@@ -67,34 +70,34 @@ export function ImportImageDialog({ onClose }: { onClose: () => void }) {
       });
       editor.setPalette(paletteId);
       editor.setDocument(doc);
-      editor.status('Image imported. Use Align Grid if the squares do not line up, then add walls.');
+      editor.status(t('dlg.import.statusNew', { tool: t('tool.gridAlign') }));
     } else {
       const next = await imageAsLayer(editor.doc, dataUrl, true);
       editor.mutate('Import image', () => next);
-      editor.status('Image added as a layer.');
+      editor.status(t('dlg.import.statusLayer'));
     }
     onClose();
   };
 
   return (
     <Modal
-      title="Import a Map Image"
+      title={t('dlg.import.title')}
       onClose={onClose}
       footer={
         <>
           <span className="grow hint">
-            Bring your own artwork in, drop a grid on it, then add walls and lights and export to your VTT.
+            {t('dlg.import.blurb')}
           </span>
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={doImport} disabled={!dataUrl}>Import</button>
+          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn primary" onClick={doImport} disabled={!dataUrl}>{t('action.import')}</button>
         </>
       }
     >
       <div className="grid-2">
         <div>
-          <Section title="File">
+          <Section title={t('dlg.import.file')}>
             <label className="btn" style={{ width: '100%', marginBottom: 8 }}>
-              {dataUrl ? 'Choose a different image…' : 'Choose an image…'}
+              {dataUrl ? t('dlg.import.chooseOther') : t('dlg.import.choose')}
               <input type="file" accept="image/*" style={{ display: 'none' }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); e.currentTarget.value = ''; }} />
             </label>
@@ -104,45 +107,45 @@ export function ImportImageDialog({ onClose }: { onClose: () => void }) {
           </Section>
         </div>
         <div>
-          <Section title="How to bring it in">
-            <SelectField label="Mode" value={mode}
+          <Section title={t('dlg.import.how')}>
+            <SelectField label={t('dlg.import.mode')} value={mode}
               options={[
-                { value: 'new', label: 'New map from this image' },
-                { value: 'layer', label: 'Add to the current map as a layer' },
+                { value: 'new', label: t('dlg.import.modeNew') },
+                { value: 'layer', label: t('dlg.import.modeLayer') },
               ] as { value: 'new' | 'layer'; label: string }[]}
               onChange={setMode} />
             {mode === 'new' && (
               <>
-                <TextField label="Title" value={name} onChange={setName} />
-                <SelectField label="Palette" value={paletteId}
-                  options={PALETTES.map((p) => ({ value: p.id, label: p.name }))}
+                <TextField label={t('field.title')} value={name} onChange={setName} />
+                <SelectField label={t('field.palette')} value={paletteId}
+                  options={PALETTES.map((p) => ({ value: p.id, label: paletteName(p.id, p.name) }))}
                   onChange={setPaletteId} />
               </>
             )}
           </Section>
 
           {mode === 'new' && (
-            <Section title="Grid">
-              <Toggle label="This image has a grid" value={useGrid} onChange={setUseGrid} />
+            <Section title={t('map.grid')}>
+              <Toggle label={t('dlg.import.hasGrid')} value={useGrid} onChange={setUseGrid} />
               {useGrid && (
                 <>
-                  <NumberField label="Cell size" value={cell} min={4} max={600} step={0.5} suffix="px"
+                  <NumberField label={t('field.cellSize')} value={cell} min={4} max={600} step={0.5} suffix="px"
                     onChange={setCell} />
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
                     <span className={`pill ${confidence > 0.5 ? 'ok' : 'warn'}`}>
-                      {detecting ? 'detecting…' : confidence > 0.5 ? 'confident' : confidence > 0.15 ? 'rough guess' : 'unsure'}
+                      {detecting ? t('dlg.import.detecting')
+                        : confidence > 0.5 ? t('dlg.import.confident')
+                          : confidence > 0.15 ? t('dlg.import.rough') : t('dlg.import.unsure')}
                     </span>
                     {dims && (
                       <span className="hint">
-                        {(dims.w / cell).toFixed(1)} × {(dims.h / cell).toFixed(1)} cells
+                        {t('map.cellsSummary', {
+                          cols: (dims.w / cell).toFixed(1), rows: (dims.h / cell).toFixed(1),
+                        })}
                       </span>
                     )}
                   </div>
-                  <p className="hint">
-                    The detector looks for the strongest repeating line spacing in the artwork.
-                    If it guesses wrong, import anyway and use the <strong>Align Grid</strong> tool —
-                    drag a box over a known number of squares and it solves the size and offset for you.
-                  </p>
+                  <p className="hint">{t('dlg.import.detectHint', { tool: t('tool.gridAlign') })}</p>
                 </>
               )}
             </Section>
