@@ -4,7 +4,8 @@ import type { MapKind } from '../core/types';
 
 export type AssetGroup =
   | 'terrain' | 'vegetation' | 'settlement' | 'structures'
-  | 'dungeon' | 'furniture' | 'battle' | 'symbols' | 'markers';
+  | 'dungeon' | 'furniture' | 'creatures' | 'battle'
+  | 'symbols' | 'markers' | 'prefabs';
 
 export interface AssetDrawArgs {
   ctx: CanvasRenderingContext2D;
@@ -24,6 +25,12 @@ export interface AssetDef {
   id: string;
   label: string;
   group: AssetGroup;
+  /**
+   * Optional shelf within the group. With three hundred-odd stamps a flat grid
+   * per group is a scroll, not a browse; the panel turns these into a second
+   * row of chips.
+   */
+  sub?: string;
   tags: string[];
   /** Natural aspect ratio (w / h). */
   aspect: number;

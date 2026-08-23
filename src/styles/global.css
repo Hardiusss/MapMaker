@@ -253,7 +253,7 @@ input[type="color"] {
 input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
 
 .slider-row { display: flex; align-items: center; gap: 8px; }
-.slider-row .value { width: 46px; text-align: right; color: var(--ink-dim); font-variant-numeric: tabular-nums; font-size: 12px; }
+.slider-row .value { min-width: 46px; text-align: right; color: var(--ink-dim); font-variant-numeric: tabular-nums; font-size: 12px; }
 
 /* ---------------------------------------------------------------- panels */
 
@@ -346,6 +346,31 @@ input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px;
   opacity: 0; transition: opacity 0.12s;
 }
 .asset-cell:hover .cap { opacity: 1; }
+.asset-cell .fav {
+  position: absolute; top: 1px; right: 1px;
+  width: 15px; height: 15px; line-height: 13px;
+  padding: 0; border: 0; border-radius: 3px;
+  background: rgba(0,0,0,0.45); color: var(--ink-dim);
+  font-size: 10px; cursor: pointer;
+  opacity: 0; transition: opacity 0.12s;
+}
+.asset-cell:hover .fav { opacity: 1; }
+.asset-cell .fav.on { opacity: 1; color: var(--accent); }
+.asset-cell .fav:hover { color: var(--accent); background: rgba(0,0,0,0.7); }
+
+/* Second-level shelves inside a group — 400 stamps need two axes, not one. */
+.asset-shelves {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  margin-bottom: 8px; padding-bottom: 7px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.asset-shelves .chip {
+  font-size: 10px; padding: 2px 7px;
+  border: 1px solid var(--line-soft); border-radius: 999px;
+  background: transparent; color: var(--ink-dim); cursor: pointer;
+}
+.asset-shelves .chip:hover { border-color: var(--accent-dim); color: var(--ink); }
+.asset-shelves .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); }
 
 .texture-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 6px; }
 .texture-cell {
@@ -506,3 +531,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px;
   border-radius: 50%; animation: spin 0.85s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Language switch — two short codes, not a dropdown: with exactly two
+   languages a select costs a click and tells you less than the pair does. */
+.lang-switch { display: flex; gap: 1px; margin-left: 2px; }
+.lang-switch .btn { min-width: 26px; padding: 3px 5px; font-size: 10px; letter-spacing: 0.04em; }

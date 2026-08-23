@@ -13,6 +13,13 @@ import { DUNGEON_ASSETS } from './procedural/dungeon';
 import { BATTLE_ASSETS } from './procedural/battle';
 import { SYMBOL_ASSETS } from './procedural/symbols';
 import { EXTRA_ASSETS } from './procedural/extras';
+import { INTERIOR_ASSETS } from './procedural/interior';
+import { CREATURE_ASSETS } from './procedural/creatures';
+import { STRUCTURE_ASSETS } from './procedural/structures';
+import { NATURE_ASSETS } from './procedural/nature';
+import { HERALDRY_ASSETS } from './procedural/heraldry';
+import { PREFAB_ASSETS } from './procedural/prefabs';
+import { ICON_ASSETS } from './procedural/icons';
 import { RNG } from '../core/rng';
 import { paletteById, parseColor } from '../core/color';
 import { createSurface, ctxOf, type Surface, loadImage } from '../util/canvas';
@@ -27,6 +34,13 @@ const BUILT_IN: AssetDef[] = [
   ...BATTLE_ASSETS,
   ...SYMBOL_ASSETS,
   ...EXTRA_ASSETS,
+  ...INTERIOR_ASSETS,
+  ...CREATURE_ASSETS,
+  ...STRUCTURE_ASSETS,
+  ...NATURE_ASSETS,
+  ...HERALDRY_ASSETS,
+  ...PREFAB_ASSETS,
+  ...ICON_ASSETS,
 ];
 
 const registry = new Map<string, AssetDef>();
@@ -65,18 +79,54 @@ export function assetsByGroup(group: AssetGroup): AssetDef[] {
 }
 
 export const ASSET_GROUPS: { group: AssetGroup; label: string }[] = [
+  { group: 'prefabs', label: 'Prefabs' },
   { group: 'terrain', label: 'Landforms' },
   { group: 'vegetation', label: 'Vegetation' },
   { group: 'settlement', label: 'Settlements' },
   { group: 'structures', label: 'Structures' },
   { group: 'dungeon', label: 'Dungeon' },
   { group: 'furniture', label: 'Furnishings' },
+  { group: 'creatures', label: 'Creatures' },
   { group: 'battle', label: 'Battle Props' },
   { group: 'symbols', label: 'Cartography' },
   { group: 'markers', label: 'Markers' },
 ];
 
-export function searchAssets(query: string, kind?: MapKind): AssetDef[] {
+/**
+ * The shelves inside a group, in the order the group declares them. With four
+ * hundred-odd stamps a group on its own is still a long scroll.
+ */
+export function subgroupsOf(group: AssetGroup): string[] {
+  const seen: string[] = [];
+  for (const a of allAssets()) {
+    if (a.group !== group || !a.sub) continue;
+    if (!seen.includes(a.sub)) seen.push(a.sub);
+  }
+  return seen;
+}
+
+export function assetCount(): number { return registry.size; }
+
+/**
+ * Extra searchable text for an asset, supplied by the caller.
+ *
+ * The registry stays language-agnostic — it knows ids, English labels and
+ * tags, and nothing about locales. The UI, which does know, passes the
+ * localised name in through here. Resolving names inside the search rather
+ * than filtering the result afterwards keeps the kind-ordering above and the
+ * matching below in one function, and gives every caller the same index.
+ */
+export type AssetAlias = (a: AssetDef) => string;
+
+export function matchesAsset(a: AssetDef, q: string, alias?: AssetAlias): boolean {
+  if (!q) return true;
+  return a.label.toLowerCase().includes(q)
+    || a.id.toLowerCase().includes(q)
+    || a.tags.some((t) => t.includes(q))
+    || (alias ? alias(a).toLowerCase().includes(q) : false);
+}
+
+export function searchAssets(query: string, kind?: MapKind, alias?: AssetAlias): AssetDef[] {
   const q = query.trim().toLowerCase();
   let list = allAssets();
   if (kind) {
@@ -87,10 +137,7 @@ export function searchAssets(query: string, kind?: MapKind): AssetDef[] {
     });
   }
   if (!q) return list;
-  return list.filter((a) =>
-    a.label.toLowerCase().includes(q) ||
-    a.id.toLowerCase().includes(q) ||
-    a.tags.some((t) => t.includes(q)));
+  return list.filter((a) => matchesAsset(a, q, alias));
 }
 
 // ---------------------------------------------------------------------------
