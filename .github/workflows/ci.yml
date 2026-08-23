@@ -1,0 +1,88 @@
+# The harnesses in tools/ are the real test suite — they drive a headless
+# Chromium against a built bundle and assert the things a virtual tabletop
+# actually checks. Running them here is what stops a generator change from
+# quietly breaking an exporter.
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Chromium comes from Playwright rather than the runner image, so the
+      # browser the harnesses drive is the same one everywhere.
+      - run: npx playwright install --with-deps chromium
+
+      - name: Typecheck and bundle
+        run: npm run build
+
+      - name: Exporters
+        run: node tools/verify-exports.mjs
+
+      - name: Interface smoke test
+        run: xvfb-run -a node tools/smoke.mjs
+
+      - name: Generated names
+        run: node tools/check-names.mjs
+
+      - name: Russian stamp-name coverage
+        run: node tools/check-asset-ru.mjs
+
+      - name: Translation key parity
+        run: node tools/check-i18n.mjs
+
+      - name: Keep the failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-output
+          path: |
+            smoke-output/
+            export-output/
+          retention-days: 7
+
+  package:
+    # Packaging breaks in ways a bundle never does — icons, metadata, native
+    # rebuilds — and it breaks per platform, so all three are built.
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build installers
+        run: npm run dist
+        env:
+          # Unsigned builds are fine for CI; signing happens at release.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+          retention-days: 14

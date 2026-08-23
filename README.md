@@ -260,6 +260,8 @@ node tools/gallery.mjs          # renders every generator variant to gallery/
 node tools/asset-sheet.mjs      # contact sheet of all 623 stamps, one PNG per group
 node tools/bench.mjs            # per-phase generator timings
 node tools/check-names.mjs      # bulk-screens generated names
+node tools/check-i18n.mjs       # translation key parity and placeholder drift
+node tools/check-asset-ru.mjs   # Russian coverage for every stamp and shelf
 ```
 
 `verify-exports.mjs` is the one that matters: it generates a map of each kind,

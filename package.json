@@ -2,8 +2,11 @@
   "name": "aetheria-cartographer",
   "productName": "Aetheria Cartographer",
   "version": "0.9.0",
-  "description": "Autonomous, offline fantasy map editor for tabletop RPGs \u2014 region, city, dungeon and battle maps with first-class Foundry VTT export.",
-  "author": "Nikita Balandin",
+  "description": "Offline fantasy map editor for tabletop RPGs — world, operational, city, castle, dungeon, cave and battle maps, with first-class Foundry VTT and Universal VTT export.",
+  "author": {
+    "name": "Nikita Balandin",
+    "email": "nikitav.balandin@gmail.com"
+  },
   "license": "MIT",
   "private": true,
   "main": "electron/main.cjs",
@@ -69,7 +72,13 @@
         "deb"
       ],
       "category": "Graphics",
-      "icon": "resources/icon.png"
+      "icon": "resources/icon.png",
+      "maintainer": "Nikita Balandin <nikitav.balandin@gmail.com>",
+      "synopsis": "Offline fantasy map editor for tabletop RPGs",
+      "desktop": {
+        "Name": "Aetheria Cartographer",
+        "Categories": "Graphics;Game;"
+      }
     },
     "publish": null
   },
