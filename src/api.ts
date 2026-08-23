@@ -14,6 +14,7 @@ import { OP_TERRAIN, OP_TERRAIN_ORDER } from './gen/operational/terrain';
 import { generateDungeon, DEFAULT_DUNGEON_OPTIONS } from './gen/dungeon/dungeonGen';
 import { generateCave, DEFAULT_CAVE_OPTIONS } from './gen/dungeon/caveGen';
 import { generateCity, DEFAULT_CITY_OPTIONS } from './gen/city/cityGen';
+import { generateCastle, DEFAULT_CASTLE_OPTIONS } from './gen/castle/castleGen';
 import { generateBattleMap, DEFAULT_BATTLE_OPTIONS } from './gen/battle/battleGen';
 import { buildFoundryScene, foundryReadme } from './export/foundry';
 import { buildUvtt } from './export/uvtt';
@@ -46,6 +47,7 @@ export function installApi(editor: Editor): void {
       dungeon: generateDungeon,
       cave: generateCave,
       city: generateCity,
+      castle: generateCastle,
       battle: generateBattleMap,
       /**
        * The tactical map for one sector of a theatre.
@@ -61,6 +63,7 @@ export function installApi(editor: Editor): void {
         dungeon: DEFAULT_DUNGEON_OPTIONS,
         cave: DEFAULT_CAVE_OPTIONS,
         city: DEFAULT_CITY_OPTIONS,
+        castle: DEFAULT_CASTLE_OPTIONS,
         battle: DEFAULT_BATTLE_OPTIONS,
       },
       /** The operational terrain table — movement, cover and sight per class. */

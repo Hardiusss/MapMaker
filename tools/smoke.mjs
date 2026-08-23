@@ -62,7 +62,7 @@ async function openGenerate() {
   await page.waitForSelector('.modal', { timeout: 5000 });
 }
 
-const tabs = ['Region / World', 'City', 'Dungeon', 'Caves', 'Battle Map'];
+const tabs = ['Region / World', 'City', 'Castle', 'Dungeon', 'Caves', 'Battle Map'];
 for (let i = 0; i < tabs.length; i++) {
   const label = tabs[i];
   await openGenerate();

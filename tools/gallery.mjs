@@ -71,6 +71,10 @@ for (const [name, opts] of [
 ]) {
   jobs.push([`operational-${name}`, { kind: 'operational', opts: { seed: 4242, ...opts } }]);
 }
+for (const style of ['motte-bailey', 'concentric', 'shell-keep', 'coastal', 'star-fort', 'hillfort']) {
+  jobs.push([`castle-${style}`, { kind: 'castle', opts: { seed: 2024, style } }]);
+}
+jobs.push(['castle-ruined', { kind: 'castle', opts: { seed: 9, style: 'concentric', ruined: 0.55 } }]);
 for (const style of ['chambers', 'warren', 'cavern']) {
   jobs.push([`cave-${style}`, { kind: 'cave', opts: { seed: 13, style } }]);
 }

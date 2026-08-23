@@ -82,7 +82,7 @@ const BANNED = [
   'fuck', 'shit', 'cunt', 'piss', 'cock', 'dick', 'wank', 'twat', 'bitch',
   'slut', 'whore', 'rape', 'nigg', 'fagg', 'spic', 'kike', 'chink', 'retard',
   'anus', 'arse', 'ass', 'tits', 'boob', 'penis', 'vagin', 'semen', 'turd',
-  'poo', 'wee', 'jizz', 'crap', 'damn', 'hell',
+  'poo', 'wee', 'jizz', 'crap', 'damn', 'hell', 'dild', 'phal', 'scat',
 ];
 
 function isUnfortunate(name: string): boolean {

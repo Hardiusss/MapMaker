@@ -64,6 +64,7 @@ function backgroundFor(kind: MapKind, paletteId: string): FillStyle {
     case 'dungeon':
     case 'cave':
       return { type: 'solid', color: '#12100e' };
+    case 'castle':
     case 'battle':
       return { type: 'solid', color: '#1a1714' };
     default:
@@ -138,6 +139,25 @@ export function defaultLayers(kind: MapKind, w: number, h: number): Layer[] {
         makeLightLayer(),
         { ...makeNoteLayer(), aboveLighting: true },
       ];
+    // A castle is an outdoor tactical map with a dungeon's appetite for walls:
+    // ground and water under everything, the masonry as its own raster so the
+    // curtain can be inked, and the usual VTT trio on top.
+    case 'castle':
+      return [
+        makeRasterLayer('Ground', w, h, 'background'),
+        makeRasterLayer('Ditch & Water', w, h, 'water'),
+        makeRasterLayer('Courtyards & Floors', w, h, 'floor'),
+        makeRasterLayer('Masonry & Earthworks', w, h, 'walls-art'),
+        makeRasterLayer('Shadow & Relief', w, h, 'relief'),
+        makeObjectLayer('Defences', 'features'),
+        makeObjectLayer('Buildings', 'features'),
+        makeObjectLayer('Gates & Stairs', 'features'),
+        makeObjectLayer('Furnishings', 'features'),
+        { ...makeObjectLayer('Labels', 'labels'), aboveLighting: true },
+        makeWallLayer(),
+        makeLightLayer(),
+        makeNoteLayer(),
+      ];
     case 'battle':
       return [
         makeRasterLayer('Ground', w, h, 'background'),
@@ -205,7 +225,7 @@ export function createDocument(opts: NewDocOptions = {}): MapDocument {
       ambientColor: '#ffffff',
       preview: false,
     },
-    vttPadding: kind === 'dungeon' || kind === 'cave' || kind === 'battle' ? 0.25 : 0,
+    vttPadding: kind === 'dungeon' || kind === 'cave' || kind === 'battle' || kind === 'castle' ? 0.25 : 0,
   };
 }
 

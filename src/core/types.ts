@@ -34,7 +34,7 @@ export function blendToComposite(b: BlendMode): GlobalCompositeOperation {
 // Map kinds & presets
 // ---------------------------------------------------------------------------
 
-export type MapKind = 'region' | 'operational' | 'city' | 'dungeon' | 'cave' | 'battle' | 'hex' | 'blank';
+export type MapKind = 'region' | 'operational' | 'city' | 'castle' | 'dungeon' | 'cave' | 'battle' | 'hex' | 'blank';
 
 export interface MapKindInfo {
   kind: MapKind;
@@ -63,6 +63,12 @@ export const MAP_KINDS: MapKindInfo[] = [
     kind: 'city', label: 'City / Settlement', blurb: 'Districts, streets, walls, harbours, keeps.',
     defaultGrid: 'none', defaultCell: 64, defaultUnits: 100, defaultUnitLabel: 'ft',
     defaultSize: { w: 2048, h: 2048 },
+  },
+  {
+    kind: 'castle', label: 'Castle / Fortress',
+    blurb: 'Curtain walls, towers, a gatehouse and a bailey — on a tactical grid.',
+    defaultGrid: 'square', defaultCell: 70, defaultUnits: 5, defaultUnitLabel: 'ft',
+    defaultSize: { w: 3500, h: 2800 },
   },
   {
     kind: 'dungeon', label: 'Dungeon', blurb: 'Rooms, corridors, doors and traps on a tactical grid.',

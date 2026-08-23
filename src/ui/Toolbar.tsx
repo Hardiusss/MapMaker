@@ -6,7 +6,9 @@ import { getTool, TOOLS } from '../tools';
 import {
   IconCursor, IconBrush, IconEraser, IconFill, IconStamp, IconText, IconShape,
   IconPath, IconWall, IconLight, IconNote, IconToken, IconRuler, IconDropper, IconHand, IconGrid,
+  IconCastle,
 } from './components/Icons';
+import { useLang } from '../i18n/useLang';
 
 const ICONS: Record<ToolId, React.ComponentType<{ size?: number }>> = {
   select: IconCursor,
@@ -17,6 +19,7 @@ const ICONS: Record<ToolId, React.ComponentType<{ size?: number }>> = {
   text: IconText,
   shape: IconShape,
   path: IconPath,
+  castle: IconCastle,
   wall: IconWall,
   light: IconLight,
   note: IconNote,
@@ -30,13 +33,16 @@ const ICONS: Record<ToolId, React.ComponentType<{ size?: number }>> = {
 const GROUPS: ToolId[][] = [
   ['select'],
   ['brush', 'eraser', 'fill', 'eyedropper'],
-  ['stamp', 'shape', 'path', 'text'],
+  ['stamp', 'shape', 'path', 'castle', 'text'],
   ['wall', 'light', 'note', 'token'],
   ['measure', 'gridalign', 'pan'],
 ];
 
 export function Toolbar() {
   const editor = useEditorEvents('tool');
+  // Subscribed only so the rail repaints when the interface language changes;
+  // the labels themselves come off each tool.
+  useLang();
 
   const pick = (id: ToolId) => {
     const prev = getTool(editor.tool);

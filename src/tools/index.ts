@@ -5,10 +5,11 @@ import { selectTool } from './selectTool';
 import { stampTool, textTool, shapeTool, pathTool, tokenTool } from './createTools';
 import { wallTool, lightTool, noteTool, measureTool, panTool } from './vttTools';
 import { gridAlignTool } from './gridAlignTool';
+import { castleTool } from './castleTool';
 
 export const TOOLS: Tool[] = [
   selectTool, brushTool, eraserTool, fillTool, stampTool, textTool, shapeTool,
-  pathTool, wallTool, lightTool, noteTool, tokenTool, measureTool, eyedropperTool, panTool,
+  pathTool, castleTool, wallTool, lightTool, noteTool, tokenTool, measureTool, eyedropperTool, panTool,
   gridAlignTool,
 ];
 
@@ -22,3 +23,4 @@ export * from './types';
 export { stampSettings, textSettings, shapeSettings, pathSettings, tokenSettings } from './createTools';
 export { wallSettings, lightSettings, LIGHT_PRESETS, pickVttHandle } from './vttTools';
 export { gridAlignSettings } from './gridAlignTool';
+export { castleSettings, type CastleSettings } from './castleTool';

@@ -24,7 +24,7 @@ import type { Surface } from '../util/canvas';
 export type ToolId =
   | 'select' | 'brush' | 'eraser' | 'fill' | 'stamp' | 'text' | 'shape'
   | 'path' | 'wall' | 'light' | 'note' | 'token' | 'measure' | 'pan' | 'eyedropper'
-  | 'gridalign';
+  | 'gridalign' | 'castle';
 
 export interface ViewOptions {
   showGrid: boolean;
