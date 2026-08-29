@@ -28,6 +28,8 @@ export interface BlendOptions {
   paletteId: string;
   /** Optional alpha for the whole result. */
   alpha?: number;
+  /** How much ground one texture tile covers here. See `TextureOptions`. */
+  detail?: number;
 }
 
 /**
@@ -54,7 +56,7 @@ export function blendTextures(
   if (!layers.length) return;
 
   const tiles = layers.map((l) => {
-    const surf = getTexture(l.textureId, { paletteId: o.paletteId, size: TILE });
+    const surf = getTexture(l.textureId, { paletteId: o.paletteId, size: TILE, detail: o.detail ?? 1 });
     return surf.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, TILE, TILE).data;
   });
 
@@ -220,8 +222,10 @@ export function addTonalDrift(
 }
 
 /** Fill an entire context with one repeating texture. */
-export function fillTexture(ctx: CanvasRenderingContext2D, W: number, H: number, textureId: string, paletteId: string): void {
-  const pat = ctx.createPattern(getTexture(textureId, { paletteId }), 'repeat')!;
+export function fillTexture(
+  ctx: CanvasRenderingContext2D, W: number, H: number, textureId: string, paletteId: string, detail = 1,
+): void {
+  const pat = ctx.createPattern(getTexture(textureId, { paletteId, detail }), 'repeat')!;
   ctx.save();
   ctx.fillStyle = pat;
   ctx.fillRect(0, 0, W, H);

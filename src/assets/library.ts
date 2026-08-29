@@ -23,6 +23,7 @@ import { ICON_ASSETS } from './procedural/icons';
 import { RNG } from '../core/rng';
 import { paletteById, parseColor } from '../core/color';
 import { createSurface, ctxOf, type Surface, loadImage } from '../util/canvas';
+import { BudgetedCache, releaseSurface } from '../util/lru';
 import type { MapKind } from '../core/types';
 import { setAssetLookup } from '../core/factories';
 
@@ -154,8 +155,21 @@ export interface RenderAssetOptions {
   variant?: number;
 }
 
-const bitmapCache = new Map<string, Surface>();
-const MAX_CACHE = 500;
+/**
+ * Rendered stamps, budgeted by pixels.
+ *
+ * The old cap was five hundred entries, which is not a quantity of anything: a
+ * 16px map pin and a stamp scaled to fill a battle map are both one entry, and
+ * differ by four orders of magnitude in what they cost. Counting bytes bounds
+ * the real number, and least-recently-used order keeps the stamps actually on
+ * screen — the old policy dropped the oldest quarter by insertion order, which
+ * happily evicted the tree that every frame redraws and kept a one-off.
+ */
+const bitmapCache = new BudgetedCache<Surface>(
+  64 * 1024 * 1024,
+  (s) => s.width * s.height * 4,
+  releaseSurface,
+);
 
 function cacheKey(id: string, o: Required<Omit<RenderAssetOptions, 'height'>> & { height: number }): string {
   return `${id}|${o.width}|${o.height}|${o.seed}|${o.paletteId}|${o.tint ?? '-'}|${o.tintStrength}|${o.variant}`;
@@ -193,11 +207,6 @@ export function renderAsset(id: string, opts: RenderAssetOptions): Surface {
   ctx.restore();
   if (palette.mono) duotone(surf, palette.ink, palette.parchment);
 
-  if (bitmapCache.size > MAX_CACHE) {
-    // Cheapest possible eviction: drop the oldest quarter.
-    const keys = Array.from(bitmapCache.keys()).slice(0, Math.floor(MAX_CACHE / 4));
-    for (const k of keys) bitmapCache.delete(k);
-  }
   bitmapCache.set(key, surf);
   return surf;
 }
@@ -227,7 +236,13 @@ function duotone(surface: Surface, darkHex: string, lightHex: string): void {
 
 export function clearAssetCache(): void { bitmapCache.clear(); }
 
-const previewCache = new Map<string, string>();
+/**
+ * Stamp previews, as PNG data URLs. Six hundred stamps come to about 3.7 MB a
+ * palette; the palette switch in the map panel clears them, but nothing else
+ * does, and a preview is requested for every box size the panel ever asks for.
+ * The budget is a handful of palettes' worth, which is all a session browses.
+ */
+const previewCache = new BudgetedCache<string>(16 * 1024 * 1024, (u) => u.length);
 
 export function assetPreview(id: string, paletteId: string, box = 72): string {
   const key = `${id}|${paletteId}|${box}`;
@@ -247,3 +262,17 @@ export function assetPreview(id: string, paletteId: string, box = 72): string {
 }
 
 export function clearPreviewCache(): void { previewCache.clear(); }
+
+/**
+ * What the two asset caches are holding. Bitmaps are counted as pixels;
+ * previews are data-URL strings, which the engine stores one byte per
+ * character because base64 is ASCII.
+ */
+export function assetCacheStats(): {
+  bitmaps: number; bitmapBytes: number; previews: number; previewBytes: number;
+} {
+  return {
+    bitmaps: bitmapCache.size, bitmapBytes: bitmapCache.byteSize,
+    previews: previewCache.size, previewBytes: previewCache.byteSize,
+  };
+}

@@ -26,8 +26,17 @@ import {
   renderExportSurface, DEFAULT_IMAGE_EXPORT,
 } from './export';
 import { renderToSurface, renderThumbnail } from './render/renderer';
-import { allAssets, renderAsset, assetPreview } from './assets/library';
-import { TEXTURES, getTexture } from './render/textures';
+import { imageCacheStats } from './render/objects';
+import { scratchStats } from './util/scratch';
+import { allAssets, renderAsset, assetPreview, assetCacheStats } from './assets/library';
+import { TEXTURES, getTexture, textureCacheStats } from './render/textures';
+import { MATERIALS, materialById, materialsByFamily } from './render/materials';
+import { PALETTES, paletteById } from './core/color';
+import {
+  hexCenter, hexCorners, hexDistance, hexLabel, hexToAxial, hexDesignationAt,
+  pointToHex, measureDistance,
+} from './render/grid';
+import { REALM_COLORS } from './gen/region/realms';
 import { generateFields, extractRivers } from './gen/region/heightmap';
 import { classify, BIOME_ORDER } from './gen/region/biomes';
 import { deriveWallsFromDocument } from './gen/deriveWalls';
@@ -108,7 +117,37 @@ export function installApi(editor: Editor): void {
 
     assets: { all: allAssets, render: renderAsset, preview: assetPreview },
     textures: { all: () => TEXTURES, get: getTexture },
+    /** The building-material catalogue the castle generator and tool share. */
+    materials: { all: () => MATERIALS, byId: materialById, byFamily: materialsByFamily },
+    /**
+     * The cartographic palettes. `realmColors` answers what a region map would
+     * actually paint its realms with under a given palette, which is not the
+     * same as the palette's own entries — `tools/check-contrast.mjs` audits it.
+     */
+    palettes: {
+      all: () => PALETTES,
+      byId: paletteById,
+      realmColors: (id: string) => paletteById(id).realmColors ?? REALM_COLORS,
+    },
     deriveWalls: deriveWallsFromDocument,
+
+    /**
+     * Hex-crawl arithmetic, for scripting a campaign rather than clicking one.
+     *
+     * `Aetheria.hex.designationAt(point, doc.grid)` gives the number a hex is
+     * called by on screen, and `Aetheria.hex.distance` counts hexes between
+     * two of them — which `measure` then turns into days at the grid's pace.
+     */
+    hex: {
+      at: pointToHex,
+      centre: hexCenter,
+      corners: hexCorners,
+      toAxial: hexToAxial,
+      distance: hexDistance,
+      label: hexLabel,
+      designationAt: hexDesignationAt,
+    },
+    measure: measureDistance,
 
     /**
      * Diagnostics used by the tuning harnesses. Cheap to keep around: biome
@@ -117,6 +156,29 @@ export function installApi(editor: Editor): void {
      * quietly grew to a third of the landmass.
      */
     debug: {
+      /**
+       * What every long-lived cache is holding right now.
+       *
+       * A map editor stays open for a whole session, so the question that
+       * matters is not how fast a cache is but whether it ever stops growing.
+       * `tools/bench-memory.mjs` samples this at checkpoints and fails the
+       * build if a fixed workload keeps adding to it.
+       */
+      caches() {
+        const tex = textureCacheStats();
+        const asset = assetCacheStats();
+        const scratch = scratchStats();
+        const images = imageCacheStats();
+        return {
+          textures: tex,
+          assetBitmaps: { entries: asset.bitmaps, bytes: asset.bitmapBytes },
+          assetPreviews: { entries: asset.previews, bytes: asset.previewBytes },
+          scratch,
+          images,
+          totalBytes: tex.bytes + asset.bitmapBytes + asset.previewBytes + scratch.bytes,
+        };
+      },
+
       /** Deciles of the raw temperature and moisture fields, over land only. */
       fieldStats(seeds = 6, opts: Record<string, unknown> = {}) {
         const t: number[] = [], m: number[] = [], a: number[] = [];
