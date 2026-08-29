@@ -82,8 +82,9 @@
     },
     "publish": null
   },
+  "homepage": "https://github.com/NVBalandin22/MapMaker",
   "repository": {
     "type": "git",
-    "url": "https://example.invalid/aetheria-cartographer.git"
+    "url": "https://github.com/NVBalandin22/MapMaker.git"
   }
 }
