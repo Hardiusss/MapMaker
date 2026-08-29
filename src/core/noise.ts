@@ -137,26 +137,34 @@ export class TileableNoise {
     }
   }
 
-  private g(ix: number, iy: number, out: [number, number]) {
-    const p = this.period;
-    const x = ((ix % p) + p) % p;
-    const y = ((iy % p) + p) % p;
-    const i = (y * p + x) * 2;
-    out[0] = this.grad[i];
-    out[1] = this.grad[i + 1];
-  }
-
+  /**
+   * The four lattice corners are read inline rather than through a helper that
+   * filled a two-element tuple. That helper allocated once per corner — four
+   * short-lived arrays per sample — and a single material tile takes on the
+   * order of half a million samples, so it was the largest single source of
+   * garbage in the whole texture library. The arithmetic below is unchanged.
+   */
   noise(x: number, y: number): number {
+    const p = this.period;
+    const grad = this.grad;
     const x0 = Math.floor(x), y0 = Math.floor(y);
     const x1 = x0 + 1, y1 = y0 + 1;
     const fx = x - x0, fy = y - y0;
     const u = fade(fx), v = fade(fy);
-    const g: [number, number] = [0, 0];
 
-    this.g(x0, y0, g); const n00 = g[0] * fx + g[1] * fy;
-    this.g(x1, y0, g); const n10 = g[0] * (fx - 1) + g[1] * fy;
-    this.g(x0, y1, g); const n01 = g[0] * fx + g[1] * (fy - 1);
-    this.g(x1, y1, g); const n11 = g[0] * (fx - 1) + g[1] * (fy - 1);
+    // x1 is x0+1, so its wrapped index is the next lattice column with a
+    // single wrap at the end. Deriving it costs a compare where the modulo
+    // pair cost two divisions, and integer congruence makes it the same index.
+    const wx0 = ((x0 % p) + p) % p, wx1 = wx0 + 1 === p ? 0 : wx0 + 1;
+    const wy0 = ((y0 % p) + p) % p, wy1 = wy0 + 1 === p ? 0 : wy0 + 1;
+    const r0 = wy0 * p, r1 = wy1 * p;
+    const i00 = (r0 + wx0) * 2, i10 = (r0 + wx1) * 2;
+    const i01 = (r1 + wx0) * 2, i11 = (r1 + wx1) * 2;
+
+    const n00 = grad[i00] * fx + grad[i00 + 1] * fy;
+    const n10 = grad[i10] * (fx - 1) + grad[i10 + 1] * fy;
+    const n01 = grad[i01] * fx + grad[i01 + 1] * (fy - 1);
+    const n11 = grad[i11] * (fx - 1) + grad[i11 + 1] * (fy - 1);
 
     return lerp(lerp(n00, n10, u), lerp(n01, n11, u), v) * 1.4;
   }
@@ -198,6 +206,16 @@ export function smoothstep(e0: number, e1: number, x: number): number {
 export class WorleyNoise {
   private points: Float32Array;
   private period: number;
+  /**
+   * Scratch returned by `f1f2` / `f1f2id`, reused between calls.
+   *
+   * These are sampled once per pixel and every call site destructures the
+   * result on the spot, so handing back the same array costs nothing and saves
+   * a hundred thousand allocations per tile. The contract that buys it: read
+   * the values out immediately, never hold the array.
+   */
+  private out2: [number, number] = [0, 0];
+  private out3: [number, number, number] = [0, 0, 0];
 
   constructor(period = 8, seed: number | string = 1, jitter = 1) {
     this.period = Math.max(2, Math.floor(period));
@@ -210,24 +228,29 @@ export class WorleyNoise {
     }
   }
 
-  /** Returns [F1, F2] distances, normalised roughly to [0,1]. */
+  /** Returns [F1, F2] distances, normalised roughly to [0,1]. Reuses `out2`. */
   f1f2(x: number, y: number): [number, number] {
     const p = this.period;
+    const pts = this.points;
     const xi = Math.floor(x), yi = Math.floor(y);
     let f1 = 1e9, f2 = 1e9;
     for (let dy = -1; dy <= 1; dy++) {
+      const cy = yi + dy;
+      const wy = ((cy % p) + p) % p;
+      const row = wy * p;
       for (let dx = -1; dx <= 1; dx++) {
-        const cx = xi + dx, cy = yi + dy;
+        const cx = xi + dx;
         const wx = ((cx % p) + p) % p;
-        const wy = ((cy % p) + p) % p;
-        const i = (wy * p + wx) * 2;
-        const px = cx + this.points[i];
-        const py = cy + this.points[i + 1];
-        const d = Math.hypot(px - x, py - y);
+        const i = (row + wx) * 2;
+        const px = cx + pts[i] - x;
+        const py = cy + pts[i + 1] - y;
+        const d = Math.sqrt(px * px + py * py);
         if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) { f2 = d; }
       }
     }
-    return [Math.min(1, f1), Math.min(1, f2)];
+    const o = this.out2;
+    o[0] = Math.min(1, f1); o[1] = Math.min(1, f2);
+    return o;
   }
 
   /**
@@ -241,22 +264,27 @@ export class WorleyNoise {
    */
   f1f2id(x: number, y: number): [number, number, number] {
     const p = this.period;
+    const pts = this.points;
     const xi = Math.floor(x), yi = Math.floor(y);
     let f1 = 1e9, f2 = 1e9, id = 0;
     for (let dy = -1; dy <= 1; dy++) {
+      const cy = yi + dy;
+      const wy = ((cy % p) + p) % p;
+      const row = wy * p;
       for (let dx = -1; dx <= 1; dx++) {
-        const cx = xi + dx, cy = yi + dy;
+        const cx = xi + dx;
         const wx = ((cx % p) + p) % p;
-        const wy = ((cy % p) + p) % p;
-        const i = (wy * p + wx) * 2;
-        const px = cx + this.points[i];
-        const py = cy + this.points[i + 1];
-        const d = Math.hypot(px - x, py - y);
+        const i = (row + wx) * 2;
+        const px = cx + pts[i] - x;
+        const py = cy + pts[i + 1] - y;
+        const d = Math.sqrt(px * px + py * py);
         if (d < f1) { f2 = f1; f1 = d; id = hash01(wx, wy); }
         else if (d < f2) { f2 = d; }
       }
     }
-    return [Math.min(1, f1), Math.min(1, f2), id];
+    const o = this.out3;
+    o[0] = Math.min(1, f1); o[1] = Math.min(1, f2); o[2] = id;
+    return o;
   }
 }
 

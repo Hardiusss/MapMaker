@@ -18,7 +18,26 @@ export interface DrawObjectOptions {
   grid?: GridConfig;
 }
 
+/**
+ * Decoded imported artwork, keyed by object id.
+ *
+ * Entries outlive the objects that made them — deleting an image from the map
+ * left its decode behind for the rest of the session — so the map is bounded.
+ * Evicting only costs a re-decode from the `src` the object still carries.
+ */
+const IMAGE_CACHE_MAX = 48;
 const imageCache = new Map<string, HTMLImageElement>();
+
+function rememberImage(id: string, img: HTMLImageElement): void {
+  imageCache.delete(id);
+  imageCache.set(id, img);
+  while (imageCache.size > IMAGE_CACHE_MAX) {
+    // Map iterates in insertion order, so the first key is the coldest.
+    const oldest = imageCache.keys().next().value;
+    if (oldest === undefined) break;
+    imageCache.delete(oldest);
+  }
+}
 
 export function drawObject(ctx: CanvasRenderingContext2D, o: MapObject, opts: DrawObjectOptions): void {
   if (!o.visible) return;
@@ -298,7 +317,16 @@ export function pathPolyline(o: PathObject): Vec2[] {
     ? catmullRom(o.nodes.map((n) => ({ x: n.x, y: n.y })), Math.max(2, Math.round(o.smoothing * 12)), o.closed)
     : o.nodes.map((n) => ({ x: n.x, y: n.y }));
   if (o.jitter > 0) {
-    const rng = new RNG(o.id);
+    // Seeded from the path's own shape, not from `o.id`.
+    //
+    // The id is a random string minted when the object is created, so the same
+    // map seed grew a different set of roads on every generation — the routes
+    // ran between the same towns but wandered differently, which is exactly
+    // the thing "same seed, same map" is supposed to rule out. The first node,
+    // the node count and the width are stable across a regeneration and across
+    // a save and reload, and no two paths on a map share all three.
+    const n0 = o.nodes[0];
+    const rng = new RNG(`path:${n0.x.toFixed(2)},${n0.y.toFixed(2)}:${o.nodes.length}:${o.width}`);
     pts = pts.map((p, i) => {
       const edge = Math.min(i, pts.length - 1 - i) / Math.max(1, pts.length * 0.1);
       const k = Math.min(1, edge);
@@ -476,14 +504,19 @@ function drawImageObject(ctx: CanvasRenderingContext2D, o: ImageObject): void {
   if (!img) {
     img = new Image();
     img.src = o.src;
-    imageCache.set(o.id, img);
   }
+  rememberImage(o.id, img);
   if (img.complete && img.naturalWidth) {
     ctx.drawImage(img, -o.width / 2, -o.height / 2, o.width, o.height);
   }
 }
 
+/** How many decoded imported images are being held. */
+export function imageCacheStats(): { entries: number } {
+  return { entries: imageCache.size };
+}
+
 export async function preloadImageObject(o: ImageObject): Promise<void> {
   if (imageCache.has(o.id)) return;
-  imageCache.set(o.id, await loadImage(o.src));
+  rememberImage(o.id, await loadImage(o.src));
 }

@@ -17,9 +17,17 @@ import type { Vec2, Rect, Wall, WallKind, LightSource, StampObject, GridConfig }
 import { RNG } from '../../core/rng';
 import { makeWall, makeLight, makeStamp, makeStampAuto } from '../../core/factories';
 import { paletteById, mix, rgba } from '../../core/color';
+import { materialById, materialTextureId, type MaterialId } from '../../render/materials';
 import { maskFromPaths, freeMask, stencil, inkOutline, castShadow, rimShade } from './masonry';
 
-export type CurtainMaterial = 'stone' | 'timber' | 'earth';
+/**
+ * What the curtain is built of.
+ *
+ * One of the catalogue's ids. Settings saved before the catalogue existed
+ * carry `stone`, `timber` or `earth`; `materialById` still answers for those,
+ * so an old tool state opens on granite, oak or turf rather than resetting.
+ */
+export type CurtainMaterial = MaterialId | 'stone' | 'timber' | 'earth';
 export type TowerPlacement = 'corners' | 'corners+spacing' | 'none';
 export type TowerShape = 'round' | 'square';
 
@@ -522,25 +530,29 @@ function breachMask(plan: CurtainPlan) {
   });
 }
 
-/** The wall itself — masonry courses, palisade timber or a turf bank. */
+/** The wall itself, in whatever it is built of. */
 export function paintCurtainBody(ctx: CanvasRenderingContext2D, plan: CurtainPlan, o: CurtainOptions, paletteId: string): void {
   const p = paletteById(paletteId);
+  const mat = materialById(o.material);
   const m = bodyMask(plan);
   const ink = Math.max(1.5, plan.cell * 0.045);
-  if (o.material === 'timber') {
-    stencil(ctx, m, 'wood-planks', paletteId, { tint: '#3a2716', tintAlpha: 0.4 });
-    inkOutline(ctx, m, ink, rgba(mix(p.ink, '#000000', 0.35), 0.9));
-  } else if (o.material === 'earth') {
-    stencil(ctx, m, 'dirt', paletteId, {
-      tint: mix(p.highland, '#000000', 0.2), tintAlpha: 0.4, drift: 0.9, seed: plan.seed + 97,
-    });
-    rimShade(ctx, m, plan.cell * 0.75, 0.6, '#1a1408');
-  } else {
-    stencil(ctx, m, 'rock', paletteId, { drift: 0.7, seed: plan.seed + 101 });
-    inkOutline(ctx, m, ink, rgba(mix(p.ink, '#000000', 0.35), 0.9));
-  }
+  // The tile is drawn for a 70px cell; on a map at any other scale it has to
+  // be told so, or a course of ashlar comes out four squares long.
+  const detail = detailFor(plan.cell);
+  stencil(ctx, m, materialTextureId(mat.id), paletteId, {
+    drift: mat.build === 'earth' ? 0.9 : 0.55, seed: plan.seed + 101, detail,
+  });
+  // An earthwork has no edge to ink — it is a bank, and what reads as its
+  // shape from above is the shadow in the slope, not a line round the top.
+  if (mat.build === 'earth') rimShade(ctx, m, plan.cell * 0.75, 0.55, '#1a1408');
+  else inkOutline(ctx, m, ink, rgba(mix(p.ink, '#000000', 0.35), 0.9));
   freeMask(m);
 }
+
+/** The reference tile covers about a 70px battle-map cell. */
+export const detailFor = (cell: number): number => clampNum(70 / Math.max(1, cell), 0.4, 3);
+
+const clampNum = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
 /**
  * The ground the wall stands on: the fighting platform, the paved gate
@@ -554,9 +566,11 @@ export function paintCurtainFloor(
     const m = floorMask(plan);
     // You walk on what the wall is made of: flags on masonry, a plank fighting
     // deck behind a palisade, beaten earth on top of a bank.
-    if (o.material === 'timber') stencil(ctx, m, 'wood-planks', paletteId, { tint: '#4a331f', tintAlpha: 0.2 });
-    else if (o.material === 'earth') stencil(ctx, m, 'dirt', paletteId, { drift: 0.7, seed: plan.seed + 61 });
-    else stencil(ctx, m, 'flagstone', paletteId, {});
+    const mat = materialById(o.material);
+    const detail = detailFor(plan.cell);
+    if (mat.build === 'timber') stencil(ctx, m, materialTextureId(mat.id), paletteId, { detail });
+    else if (mat.build === 'earth') stencil(ctx, m, 'dirt', paletteId, { drift: 0.7, seed: plan.seed + 61, detail });
+    else stencil(ctx, m, 'flagstone', paletteId, { detail });
     freeMask(m);
   }
   if (plan.breaches.length) {
@@ -693,14 +707,16 @@ export function curtainStamps(plan: CurtainPlan, o: CurtainOptions): StampObject
   // --- Crest --------------------------------------------------------------
   // Stone only gets a battlement band when the GM asked for one; timber and
   // earth *are* their crest — stakes and a turf bank — so those always run.
-  const crestAsset = o.material === 'stone' ? 'str/wall-segment' : o.material === 'timber' ? 'str/palisade' : 'str/rampart';
-  if (o.material !== 'stone' || o.crenellations) {
+  const mat = materialById(o.material);
+  const crestAsset = mat.build === 'masonry' ? 'str/wall-segment'
+    : mat.build === 'timber' ? 'str/palisade' : 'str/rampart';
+  if (mat.build !== 'masonry' || o.crenellations) {
     const segs = segments(plan.pts, plan.closed);
-    const step = (o.material === 'stone' ? 2.6 : o.material === 'timber' ? 2.4 : 3.2) * plan.cell;
+    const step = (mat.build === 'masonry' ? 2.6 : mat.build === 'timber' ? 2.4 : 3.2) * plan.cell;
     const band = plan.parapet > 0 ? plan.parapet : plan.half * 2;
     // Each asset carries its crest at a different fraction of its own height;
     // these put the drawn battlement on the drawn wall rather than beside it.
-    const bandToHeight = o.material === 'stone' ? 2.5 : o.material === 'timber' ? 2.3 : 0;
+    const bandToHeight = mat.build === 'masonry' ? 2.5 : mat.build === 'timber' ? 2.3 : 0;
     const total = chainLength(segs);
     // With a walk the battlement belongs on the outer parapet; without one the
     // whole thickness is the crest and it sits on the centreline.
@@ -716,7 +732,7 @@ export function curtainStamps(plan: CurtainPlan, o: CurtainOptions): StampObject
       out.push(makeStamp(crestAsset, p.x + n.x * off, p.y + n.y * off, step * 1.08,
         bandToHeight ? band * bandToHeight : (step * 1.08) / 3, {
           rotation: deg(t),
-          opacity: o.material === 'earth' ? 0.75 : 0.95,
+          opacity: mat.build === 'earth' ? 0.75 : 0.95,
           seed: rng.int(1, 1e6),
           name: 'Battlements',
         }));

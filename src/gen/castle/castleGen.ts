@@ -22,6 +22,7 @@ import { syllableName, createNamer, type Culture } from '../names';
 import { makeGrid, at, traceWalls, type CellGrid, type DoorSpec } from '../dungeon/grid';
 import { makeStamp, makeStampAuto, makeText, makeLight, makeNote, makeWall } from '../../core/factories';
 import { paletteById, mix, rgba } from '../../core/color';
+import { materialById, materialTextureId, type MaterialId } from '../../render/materials';
 import { createSurface, ctxOf } from '../../util/canvas';
 import { acquireScratch, releaseScratch } from '../../util/scratch';
 import { blendTextures, addTonalDrift } from '../paintUtils';
@@ -54,6 +55,32 @@ export interface CastleGenOptions {
   lights: boolean;
   paletteId: string;
   title?: string;
+  /**
+   * Override what the place is built of.
+   *
+   * A castle is built of whatever the ground it stands on will give up, so by
+   * default the style and the seed choose — but a GM setting a campaign in one
+   * county wants every keep in it cut from the same stone, and that is what
+   * these are for. Anything left out is still chosen.
+   */
+  materials?: Partial<CastleMaterials>;
+}
+
+/**
+ * What one castle is built of.
+ *
+ * Three, not one, because a fortification is not made of a single substance:
+ * the curtain is masonry, the outworks and the stockade are not, and a motte
+ * and bailey is mostly neither. The grid carries three structural classes and
+ * each of them resolves to a material here.
+ */
+export interface CastleMaterials {
+  /** Curtain, towers, keep — anything the grid calls masonry. */
+  masonry: MaterialId;
+  /** Palisades, bretèches, roundhouses. */
+  timber: MaterialId;
+  /** Banks, ramparts, ravelins. */
+  earth: MaterialId;
 }
 
 export const DEFAULT_CASTLE_OPTIONS: CastleGenOptions = {
@@ -322,7 +349,16 @@ function outlineAt(poly: Vec2[], frac: number): Sample {
 // The plan under construction
 // ---------------------------------------------------------------------------
 
-type WardMaterial = 'stone' | 'timber' | 'earth';
+/**
+ * Which of the three structural classes a ward's wall is.
+ *
+ * Deliberately *not* the material id: the sub-cell grid has one byte per cell
+ * and the mode filter in `coarsen` walks a fixed tally, so the plan works in
+ * classes and `Build.mats` says what each class is made of. Two different
+ * stones in one castle would need two more grid classes and buy very little —
+ * masons quarried locally and used what came out.
+ */
+type WardMaterial = 'masonry' | 'timber' | 'earth';
 
 interface Ward {
   name: string;
@@ -360,6 +396,17 @@ interface Prop {
   opacity?: number;
   seed?: number;
   shadow?: boolean;
+  /**
+   * Which of the castle's three materials this prop is built of.
+   *
+   * The stamps are library art with their own grey stone and brown timber in
+   * them, which was fine while a castle was "stone, timber or earth" and is
+   * wrong now that it can be red brick or basalt: a brick star fort came out
+   * with grey drums bolted to a red curtain. Naming the class here lets
+   * `emitProps` hand the stamp the same face colour the masonry pass painted
+   * the wall with, through the tint channel the assets already read.
+   */
+  mat?: WardMaterial;
 }
 
 interface Opening { a: Vec2; b: Vec2; kind: WallKind }
@@ -385,6 +432,7 @@ interface Build {
   props: Prop[];
   lights: LightSpec[];
   rooms: CastleRoom[];
+  mats: CastleMaterials;
   notes: { x: number; y: number; title: string; body: string }[];
   /** Footprints already spoken for, so buildings do not sit on the gate road. */
   reserved: { x: number; y: number; w: number; h: number }[];
@@ -395,7 +443,7 @@ interface Build {
 // ---------------------------------------------------------------------------
 
 function solidFor(m: WardMaterial): number {
-  return m === 'stone' ? MASONRY : m === 'timber' ? TIMBER : EARTH;
+  return m === 'masonry' ? MASONRY : m === 'timber' ? TIMBER : EARTH;
 }
 
 function stampWard(b: Build, w: Ward): void {
@@ -793,7 +841,7 @@ function addKeep(b: Build, cx: number, cy: number, w: number, h: number, round: 
         const tx = cx + sx * (w / 2 - 0.25), ty = cy + sy * (h / 2 - 0.25);
         stampDisc(b, tx, ty, 1.5, MASONRY);
         stampDisc(b, tx, ty, 0.75, FLOOR);
-        b.props.push({ layer: 'defences', asset: 'str/round-tower', x: tx, y: ty, w: 3.4, name: 'Keep turret' });
+        b.props.push({ layer: 'defences', asset: 'str/round-tower', x: tx, y: ty, w: 3.4, name: 'Keep turret', mat: 'masonry' });
         b.lights.push({ x: tx, y: ty, bright: 20, dim: 40, color: '#ffae5c', animation: 'torch', name: 'Turret brazier' });
       }
     }
@@ -813,7 +861,7 @@ function addKeep(b: Build, cx: number, cy: number, w: number, h: number, round: 
   b.props.push({ layer: 'gates', asset: 'dgn/stairs', x: fx, y: fy + 0.2, w: 1.7, h: 2.6, rot: 180, name: 'Stair to the keep door' });
 
   b.props.push({
-    layer: 'buildings', asset: round ? 'str/tower-footprint-td' : 'str/manor-td',
+    layer: 'buildings', asset: round ? 'str/tower-footprint-td' : 'str/manor-td', mat: 'masonry',
     x: cx, y: cy, w, h, name, shadow: true, opacity: 0.94,
   });
   b.rooms.push({ name, x: cx, y: cy, kind: 'keep', span: Math.max(w, h) });
@@ -1029,8 +1077,8 @@ function addRoundhouse(b: Build, x: number, y: number, r: number, name: string):
 
 /** Crenellation, palisade or turf revetment laid along the crest of a ward. */
 function dressCrest(b: Build, w: Ward): void {
-  const seg = w.material === 'stone' ? 2.6 : w.material === 'timber' ? 2.4 : 3.2;
-  const asset = w.material === 'stone' ? 'str/wall-segment' : w.material === 'timber' ? 'str/palisade' : 'str/rampart';
+  const seg = w.material === 'masonry' ? 2.6 : w.material === 'timber' ? 2.4 : 3.2;
+  const asset = w.material === 'masonry' ? 'str/wall-segment' : w.material === 'timber' ? 'str/palisade' : 'str/rampart';
   const band = w.walk ? w.parapet : w.thickness;
   // Each asset carries its crest at a different fraction of its own height;
   // these put the drawn battlement on the drawn wall rather than beside it.
@@ -1038,7 +1086,7 @@ function dressCrest(b: Build, w: Ward): void {
   // wall; the earthwork asset is a long shallow strip and stretching it to the
   // width of a rampart turns each segment into a slab. That one is drawn at its
   // own proportions instead, as a crest line running along the bank.
-  const bandToHeight = w.material === 'stone' ? 2.5 : w.material === 'timber' ? 2.3 : 0;
+  const bandToHeight = w.material === 'masonry' ? 2.5 : w.material === 'timber' ? 2.3 : 0;
   for (const s of walkOutline(w.outline, seg)) {
     // A ruin loses its merlons before it loses its wall.
     if (b.rng.next() < b.o.ruined * 0.8) continue;
@@ -1057,6 +1105,7 @@ function dressCrest(b: Build, w: Ward): void {
       x, y, w: seg * 1.08, h: bandToHeight ? band * bandToHeight : (seg * 1.08) / 3,
       rot: (Math.atan2(s.t.y, s.t.x) * 180) / Math.PI,
       opacity: w.material === 'earth' ? 0.75 : 0.95, name: 'Battlements',
+      mat: w.material,
     });
   }
 }
@@ -1071,7 +1120,7 @@ function planConcentric(b: Build, cx: number, cy: number, R: number): void {
   const outer: Ward = {
     name: twoRings ? 'Outer Ward' : 'Bailey',
     outline: roundRectPoly(cx, cy, outerR * 1.14, outerR * 0.96, 4.2),
-    thickness: 3.8, material: 'stone', walk: true, parapet: 0.95, fillInterior: true,
+    thickness: 3.8, material: 'masonry', walk: true, parapet: 0.95, fillInterior: true,
   };
   stampWard(b, outer);
   if (o.moat) stampApron(b, outer.outline, 0.4, 0.4 + o.moatWidth, MOAT);
@@ -1081,7 +1130,7 @@ function planConcentric(b: Build, cx: number, cy: number, R: number): void {
     inner = {
       name: 'Inner Ward',
       outline: roundRectPoly(cx, cy + outerR * 0.02, outerR * 0.72, outerR * 0.60, 2.4),
-      thickness: 3.8, material: 'stone', walk: true, parapet: 0.95, fillInterior: true,
+      thickness: 3.8, material: 'masonry', walk: true, parapet: 0.95, fillInterior: true,
     };
     stampWard(b, inner);
   }
@@ -1139,7 +1188,7 @@ function planShellKeep(b: Build, cx: number, cy: number, R: number): void {
   const ward: Ward = {
     name: 'Shell Keep',
     outline: circlePoly(cx, cy, rr, rng, 0.025),
-    thickness: 3.8, material: 'stone', walk: true, parapet: 0.95, fillInterior: true,
+    thickness: 3.8, material: 'masonry', walk: true, parapet: 0.95, fillInterior: true,
   };
   stampWard(b, ward);
   if (o.moat) stampApron(b, ward.outline, 0.4, 0.4 + o.moatWidth, MOAT);
@@ -1218,7 +1267,7 @@ function planMotteBailey(b: Build, cx: number, cy: number, R: number): void {
     const ty = gPt.p.y + gPt.t.y * 2.3 * side - gPt.n.y * 0.5;
     stampDisc(b, tx, ty, 1.6, TIMBER);
     stampDisc(b, tx, ty, 0.95, FLOOR);
-    b.props.push({ layer: 'defences', asset: 'str/tower-footprint-td', x: tx, y: ty, w: 3.3, name: 'Gate tower', shadow: true });
+    b.props.push({ layer: 'defences', asset: 'str/tower-footprint-td', x: tx, y: ty, w: 3.3, name: 'Gate tower', shadow: true, mat: 'masonry' });
     b.lights.push({ x: tx, y: ty, bright: 15, dim: 30, color: '#ffae5c', animation: 'torch', name: 'Gate brazier' });
   }
 
@@ -1248,7 +1297,7 @@ function planCoastal(b: Build, cx: number, cy: number, R: number): void {
   const ward: Ward = {
     name: 'Sea Castle',
     outline: roundRectPoly(ccx, cy, R * 1.05, R * 1.08, 3.4),
-    thickness: 3.6, material: 'stone', walk: true, parapet: 0.95, fillInterior: true,
+    thickness: 3.6, material: 'masonry', walk: true, parapet: 0.95, fillInterior: true,
   };
   stampWard(b, ward);
   if (o.moat) {
@@ -1316,7 +1365,7 @@ function planStarFort(b: Build, cx: number, cy: number, R: number): void {
   const ward: Ward = {
     name: 'The Works',
     outline,
-    thickness: 3.6, material: 'stone', walk: true, parapet: 0.9, fillInterior: true,
+    thickness: 3.6, material: 'masonry', walk: true, parapet: 0.9, fillInterior: true,
   };
   stampWard(b, ward);
 
@@ -1331,7 +1380,7 @@ function planStarFort(b: Build, cx: number, cy: number, R: number): void {
     const a = i * step - Math.PI / 2;
     // Bastion salients: the whole reason for the shape.
     b.props.push({
-      layer: 'defences', asset: 'str/bastion',
+      layer: 'defences', asset: 'str/bastion', mat: 'masonry',
       x: cx + Math.cos(a) * rr * 1.08, y: cy + Math.sin(a) * rr * 1.08,
       w: rr * 0.42, rot: (a * 180) / Math.PI + 90, name: 'Bastion', opacity: 0.85,
     });
@@ -1733,7 +1782,13 @@ function paintCastle(doc: MapDocument, b: Build): void {
     freeMask(court);
 
     const walk = matMask(g, cell, (m) => m === WALK);
-    stencil(ctx, walk, 'flagstone', o.paletteId, {});
+    // Flags, not the wall's own coursing — a wall walk is paved, not built. But
+    // the flags came out of the same quarry as the wall, so they take its
+    // colour: grey flagstone laid along a red brick rampart is the same wrong
+    // note as a grey drum on a red tower.
+    stencil(ctx, walk, 'flagstone', o.paletteId, {
+      tint: materialById(b.mats.masonry).base(palette), tintAlpha: 0.3,
+    });
     freeMask(walk);
 
     const rooms = matMask(g, cell, (m) => m === FLOOR);
@@ -1752,19 +1807,24 @@ function paintCastle(doc: MapDocument, b: Build): void {
 
   if (stone) {
     const ctx = ctxOf(stone.surface);
+    // The tile is drawn for a 70px battle-map cell. A castle sheet can be laid
+    // out at anything from 40 to 120, so the tile is told how much ground it is
+    // covering rather than being stretched and hoping.
+    const detail = Math.max(0.4, Math.min(3, 70 / cell));
+
     const earth = matMask(g, cell, (m) => m === EARTH);
-    stencil(ctx, earth, 'dirt', o.paletteId, {
-      tint: mix(palette.highland, '#000000', 0.2), tintAlpha: 0.4, drift: 0.9, seed: o.seed + 97,
+    stencil(ctx, earth, materialTextureId(b.mats.earth), o.paletteId, {
+      tint: mix(palette.highland, '#000000', 0.2), tintAlpha: 0.22, drift: 0.9, seed: o.seed + 97, detail,
     });
-    rimShade(ctx, earth, cell * 0.75, 0.6, '#1a1408');
+    rimShade(ctx, earth, cell * 0.75, 0.55, '#1a1408');
     freeMask(earth);
 
     const timber = matMask(g, cell, (m) => m === TIMBER);
-    stencil(ctx, timber, 'wood-planks', o.paletteId, { tint: '#3a2716', tintAlpha: 0.4 });
+    stencil(ctx, timber, materialTextureId(b.mats.timber), o.paletteId, { drift: 0.5, seed: o.seed + 99, detail });
     freeMask(timber);
 
     const masonry = matMask(g, cell, (m) => m === MASONRY);
-    stencil(ctx, masonry, 'rock', o.paletteId, { drift: 0.7, seed: o.seed + 101 });
+    stencil(ctx, masonry, materialTextureId(b.mats.masonry), o.paletteId, { drift: 0.5, seed: o.seed + 101, detail });
     inkOutline(ctx, masonry, Math.max(1.5, cell * 0.045), rgba(mix(palette.ink, '#000000', 0.35), 0.9));
     freeMask(masonry);
   }
@@ -1790,6 +1850,14 @@ function objLayer(doc: MapDocument, name: string) {
 
 function emitProps(doc: MapDocument, b: Build): void {
   const cell = b.o.cell;
+  const palette = paletteById(b.o.paletteId);
+  // One lookup per class, not per prop: a big castle emits a few hundred of
+  // these and `base()` mixes colours.
+  const faceOf: Record<WardMaterial, string> = {
+    masonry: materialById(b.mats.masonry).base(palette),
+    timber: materialById(b.mats.timber).base(palette),
+    earth: materialById(b.mats.earth).base(palette),
+  };
   const layers = {
     defences: objLayer(doc, 'Defences'),
     buildings: objLayer(doc, 'Buildings'),
@@ -1808,6 +1876,12 @@ function emitProps(doc: MapDocument, b: Build): void {
       opacity: p.opacity ?? 1,
       name: p.name,
       shadow,
+      // Full strength, which is not the same as a flat repaint: the structure
+      // stamps take a tint at a fraction of what they are given, precisely so a
+      // recoloured tower keeps its shading, its merlons and its ink. At 1 the
+      // drum reads as the same material as the wall it stands in and still
+      // reads as a drum.
+      ...(p.mat ? { tint: faceOf[p.mat], tintStrength: 1 } : null),
     };
     layer.objects.push(p.h === undefined
       ? makeStampAuto(p.asset, p.x * cell, p.y * cell, p.w * cell, common)
@@ -1819,7 +1893,7 @@ function emitTowers(b: Build): void {
   for (const t of b.towers) {
     b.props.push({
       layer: 'defences', asset: 'str/round-tower', x: t.x, y: t.y, w: t.r * 2.05,
-      opacity: t.ruinedTop ? 0.72 : 1,
+      opacity: t.ruinedTop ? 0.72 : 1, mat: 'masonry',
       name: t.kind === 'gate' ? 'Gate tower' : t.ruinedTop ? 'Ruined tower' : 'Mural tower',
       shadow: true,
     });
@@ -1936,6 +2010,56 @@ function castleName(rng: RNG, style: CastleStyle, culture: Culture): string {
   }
 }
 
+/**
+ * What this castle is built of.
+ *
+ * Two things decide it. The style, because a bastioned trace is a brick-and-
+ * earth machine for absorbing round shot and a hillfort is turf and stakes,
+ * and no amount of seeding should turn one into the other. And the seed,
+ * because within what the style allows the answer is "whatever was in the
+ * ground here" — a coastal keep gets the hard stone of a headland, an inland
+ * one the limestone or sandstone of a lowland quarry.
+ *
+ * The caller can pin any of the three; whatever is left over is still rolled.
+ */
+function pickMaterials(rng: RNG, style: CastleStyle, override?: Partial<CastleMaterials>): CastleMaterials {
+  const STONE_BY_STYLE: Record<CastleStyle, readonly (readonly [MaterialId, number])[]> = {
+    // Inland lowland: what a quarry a day's cart-ride away would yield.
+    concentric: [['limestone', 3], ['granite', 2.5], ['sandstone', 2], ['fieldstone', 1.2], ['flint', 0.8]],
+    // An early ring wall thrown up out of whatever the field gave.
+    'shell-keep': [['fieldstone', 3], ['granite', 2], ['flint', 1.6], ['limestone', 1.2], ['slate', 0.8]],
+    // The motte's tower is timber; what masonry there is came off the field.
+    'motte-bailey': [['fieldstone', 3], ['granite', 1.6], ['sandstone', 1.2]],
+    // A headland is hard rock, and the sea takes anything soft.
+    coastal: [['granite', 3], ['basalt', 2], ['slate', 1.8], ['flint', 1.2], ['limestone', 1]],
+    // Brick absorbs shot instead of spalling; that is the whole point of it.
+    'star-fort': [['brick-red', 4], ['brick-pale', 2.5], ['limestone', 1]],
+    // The banks are the fort; what stone there is faces the gate.
+    hillfort: [['fieldstone', 3], ['slate', 1.4], ['granite', 1]],
+  };
+  const TIMBER_BY_STYLE: Record<CastleStyle, readonly (readonly [MaterialId, number])[]> = {
+    concentric: [['oak', 3], ['iron-bound', 1.5], ['pine', 1]],
+    'shell-keep': [['oak', 3], ['weathered-timber', 1.5], ['pine', 1]],
+    'motte-bailey': [['oak', 3], ['pine', 2], ['iron-bound', 1]],
+    coastal: [['weathered-timber', 3], ['oak', 2], ['charred-timber', 0.4]],
+    'star-fort': [['oak', 3], ['iron-bound', 2], ['pine', 1]],
+    hillfort: [['oak', 2.5], ['pine', 2.5], ['birch', 1.5], ['charred-timber', 0.5]],
+  };
+  const EARTH_BY_STYLE: Record<CastleStyle, readonly (readonly [MaterialId, number])[]> = {
+    concentric: [['rammed-earth', 2], ['packed-clay', 2], ['turf', 1.5]],
+    'shell-keep': [['turf', 2.5], ['packed-clay', 1.5]],
+    'motte-bailey': [['turf', 3], ['packed-clay', 2]],
+    coastal: [['packed-clay', 2.5], ['turf', 1.5]],
+    'star-fort': [['rammed-earth', 3.5], ['adobe', 1.2], ['packed-clay', 1]],
+    hillfort: [['turf', 4], ['packed-clay', 1]],
+  };
+  return {
+    masonry: override?.masonry ?? rng.pickWeighted(STONE_BY_STYLE[style]),
+    timber: override?.timber ?? rng.pickWeighted(TIMBER_BY_STYLE[style]),
+    earth: override?.earth ?? rng.pickWeighted(EARTH_BY_STYLE[style]),
+  };
+}
+
 export function generateCastle(opts: Partial<CastleGenOptions> = {}): CastleResult {
   const o: CastleGenOptions = { ...DEFAULT_CASTLE_OPTIONS, ...opts };
   const rng = new RNG(o.seed);
@@ -1951,7 +2075,7 @@ export function generateCastle(opts: Partial<CastleGenOptions> = {}): CastleResu
   const b: Build = {
     o, rng, g, cols, rows,
     wards: [], towers: [], doors: [], props: [], lights: [],
-    rooms: [], notes: [], reserved: [],
+    rooms: [], mats: pickMaterials(rng.fork(0x1a7e), o.style, o.materials), notes: [], reserved: [],
   };
 
   const cx = cols / 2, cy = rows / 2;
@@ -1984,6 +2108,8 @@ export function generateCastle(opts: Partial<CastleGenOptions> = {}): CastleResu
   });
   doc.meta.seed = o.seed;
   doc.meta.description = `${o.style} castle, ${cols}×${rows} squares at ${o.cell}px / 5 ft.`
+    + ` Built of ${materialById(b.mats.masonry).label.toLowerCase()}`
+    + `, ${materialById(b.mats.timber).label.toLowerCase()} and ${materialById(b.mats.earth).label.toLowerCase()}.`
     + `${o.ruined > 0.05 ? ` ${Math.round(o.ruined * 100)}% ruined.` : ''} Seed ${o.seed}.`;
 
   paintCastle(doc, b);

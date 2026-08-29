@@ -238,12 +238,84 @@ export const DUNGEON_ASSETS: AssetDef[] = [
   {
     id: 'dgn/chair', label: 'Chair', group: 'furniture', tags: ['seat', 'stool'],
     aspect: 1, defaultWidth: 40, variants: 2, kinds: ['dungeon', 'battle', 'city'],
+    /**
+     * Seen from above a chair is mostly its seat, which is why this read as a
+     * box: a plank with a dark bar on it is a crate with a lid. What makes it
+     * a chair is the things that are not the seat — four leg tips showing
+     * beyond it, and a back standing *over* it, throwing a shadow across the
+     * boards. Variant 1 is a three-legged stool, which is the other thing a
+     * GM means when they say chair.
+     */
     draw(a) {
-      const { ctx, w, h } = a;
-      groundShadow(ctx, w * 0.52, h * 0.55, w * 0.34, h * 0.3, 0.25);
-      plank(a, w * 0.2, h * 0.2, w * 0.6, h * 0.6, 3);
-      ctx.fillStyle = mix(wood(a), '#000000', 0.3);
-      ctx.fillRect(w * 0.16, h * 0.16, w * 0.68, h * 0.12);
+      const { ctx, w, h, rng } = a;
+      const cx = w * 0.5, cy = h * 0.52;
+      groundShadow(ctx, cx + w * 0.03, cy + h * 0.05, w * 0.36, h * 0.34, 0.28);
+
+      if (a.variant % 2 === 1) {
+        const r = Math.min(w, h) * 0.3;
+        for (let i = 0; i < 3; i++) {
+          const ang = (i / 3) * Math.PI * 2 + 0.5;
+          ctx.fillStyle = mix(woodDark, '#000000', 0.2);
+          ctx.beginPath();
+          ctx.ellipse(cx + Math.cos(ang) * r * 1.16, cy + Math.sin(ang) * r * 1.16,
+            r * 0.17, r * 0.14, ang, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        outlined(a, () => { ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.96, 0, 0, Math.PI * 2); },
+          lightGradient(ctx, cx - r, cy - r, cx + r, cy + r, wood(a), 0.26, 0.3));
+        // Turned rings on the seat top, and the dished centre a stool wears in.
+        ctx.strokeStyle = rgba(woodDark, 0.4);
+        ctx.lineWidth = Math.max(1, r * 0.06);
+        for (const f of [0.66, 0.4]) {
+          ctx.beginPath(); ctx.ellipse(cx, cy, r * f, r * f * 0.96, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.fillStyle = rgba('#000000', 0.1);
+        ctx.beginPath(); ctx.ellipse(cx, cy, r * 0.34, r * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+        return;
+      }
+
+      const sx = w * 0.24, sy = h * 0.28, sw = w * 0.52, sh = h * 0.5;
+      // Leg tips, just clear of the seat so the frame reads.
+      ctx.fillStyle = mix(woodDark, '#000000', 0.15);
+      for (const [lx, ly] of [[sx, sy], [sx + sw, sy], [sx, sy + sh], [sx + sw, sy + sh]] as [number, number][]) {
+        ctx.beginPath();
+        ctx.ellipse(lx, ly, w * 0.05, h * 0.045, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      plank(a, sx, sy, sw, sh, 3);
+
+      // The back: a top rail on two uprights, standing above the seat. Its
+      // shadow on the boards is what puts it above them rather than on them.
+      const by = h * 0.2;
+      ctx.fillStyle = rgba('#000000', 0.26);
+      ctx.fillRect(sx - w * 0.01, by + h * 0.07, sw + w * 0.02, h * 0.09);
+      ctx.save();
+      ctx.fillStyle = lightGradient(ctx, 0, by, 0, by + h * 0.1, wood(a), 0.3, 0.34);
+      roundRect(ctx, sx - w * 0.03, by, sw + w * 0.06, h * 0.1, h * 0.03);
+      ctx.fill();
+      ctx.strokeStyle = rgba(ink(a), 0.7);
+      ctx.lineWidth = Math.max(1, w * 0.022);
+      ctx.stroke();
+      ctx.restore();
+      // Splats between rail and seat, glimpsed edge-on.
+      ctx.strokeStyle = rgba(woodDark, 0.55);
+      ctx.lineWidth = Math.max(1, w * 0.03);
+      for (let i = 0; i < 3; i++) {
+        const t = (i + 1) / 4;
+        ctx.beginPath();
+        ctx.moveTo(sx + sw * t, by + h * 0.1);
+        ctx.lineTo(sx + sw * t, by + h * 0.16);
+        ctx.stroke();
+      }
+      if (rng.bool(0.4)) {
+        // A cushion, on the chairs that have one.
+        ctx.fillStyle = rgba(mix(a.palette.accent, '#7a3b34', 0.4), 0.8);
+        roundRect(ctx, sx + sw * 0.2, sy + sh * 0.24, sw * 0.6, sh * 0.54, sw * 0.12);
+        ctx.fill();
+        ctx.strokeStyle = rgba(ink(a), 0.45);
+        ctx.lineWidth = Math.max(1, w * 0.015);
+        ctx.stroke();
+      }
     },
   },
   {

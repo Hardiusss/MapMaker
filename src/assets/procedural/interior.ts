@@ -1412,24 +1412,89 @@ export const INTERIOR_ASSETS: AssetDef[] = [
     id: 'int/iron-maiden', label: 'Iron Maiden', group: 'furniture', sub: 'Prison',
     tags: ['prison', 'torture', 'iron'], aspect: 0.5, defaultWidth: 56, variants: 1,
     kinds: ['dungeon', 'battle'],
+    /**
+     * A tapered grey shape from above is a traffic cone. What names this one
+     * is its ironmongery: two leaves with a seam between them, three hinges
+     * down one side and a hasp down the other, banded and riveted, with the
+     * cast face on the lid that is the only reason anyone recognises the
+     * thing at all.
+     */
     draw(a) {
       const { ctx, w, h } = a;
-      groundShadow(ctx, w * 0.53, h * 0.53, w * 0.4, h * 0.46, 0.34);
-      outlined(a, () => {
+      groundShadow(ctx, w * 0.55, h * 0.55, w * 0.42, h * 0.48, 0.36);
+      const body = mix(iron, '#000000', 0.1);
+      // Head end broad and round, foot end drawn in — a body, not a cone.
+      const shell = () => {
         ctx.beginPath();
-        ctx.moveTo(w * 0.32, h * 0.06);
-        ctx.quadraticCurveTo(w * 0.5, h * 0.0, w * 0.68, h * 0.06);
-        ctx.lineTo(w * 0.84, h * 0.9);
-        ctx.quadraticCurveTo(w * 0.5, h * 0.99, w * 0.16, h * 0.9);
+        ctx.moveTo(w * 0.5, h * 0.03);
+        ctx.bezierCurveTo(w * 0.9, h * 0.06, w * 0.92, h * 0.34, w * 0.8, h * 0.56);
+        ctx.bezierCurveTo(w * 0.74, h * 0.78, w * 0.68, h * 0.95, w * 0.5, h * 0.97);
+        ctx.bezierCurveTo(w * 0.32, h * 0.95, w * 0.26, h * 0.78, w * 0.2, h * 0.56);
+        ctx.bezierCurveTo(w * 0.08, h * 0.34, w * 0.1, h * 0.06, w * 0.5, h * 0.03);
         ctx.closePath();
-      }, lightGradient(ctx, w * 0.16, 0, w * 0.84, h, mix(iron, '#000000', 0.15), 0.28, 0.35));
-      ctx.strokeStyle = rgba('#8a7040', 0.7); ctx.lineWidth = Math.max(1, w * 0.02);
-      ctx.beginPath(); ctx.moveTo(w * 0.5, h * 0.1); ctx.lineTo(w * 0.5, h * 0.9); ctx.stroke();
-      ctx.fillStyle = '#8a7040';
-      for (let i = 0; i < 4; i++) {
-        const yy = h * (0.24 + i * 0.16);
-        ctx.beginPath(); ctx.arc(w * 0.5, yy, w * 0.02, 0, Math.PI * 2); ctx.fill();
+      };
+      outlined(a, shell, lightGradient(ctx, w * 0.1, 0, w * 0.9, h, body, 0.3, 0.4), 0.8, 0.024);
+
+      ctx.save();
+      shell();
+      ctx.clip();
+      // The two leaves, and the shadow the near one drops into the seam.
+      ctx.fillStyle = rgba('#000000', 0.3);
+      ctx.fillRect(w * 0.5, 0, w * 0.05, h);
+      ctx.strokeStyle = rgba(ironLight, 0.5);
+      ctx.lineWidth = Math.max(1, w * 0.018);
+      ctx.beginPath(); ctx.moveTo(w * 0.49, h * 0.04); ctx.lineTo(w * 0.49, h * 0.96); ctx.stroke();
+      // Iron bands across the shell, each with its rivets.
+      for (const t of [0.2, 0.44, 0.68, 0.86]) {
+        ctx.fillStyle = rgba(mix(iron, '#ffffff', 0.16), 0.85);
+        ctx.fillRect(0, h * t - h * 0.018, w, h * 0.036);
+        ctx.fillStyle = rgba('#000000', 0.28);
+        ctx.fillRect(0, h * t + h * 0.018, w, h * 0.012);
+        ctx.fillStyle = rgba(ironLight, 0.9);
+        for (const u of [0.2, 0.34, 0.66, 0.8]) {
+          ctx.beginPath(); ctx.arc(w * u, h * t, w * 0.02, 0, Math.PI * 2); ctx.fill();
+        }
       }
+      // The face on the lid: brow, eyes and a nose ridge, cast proud.
+      const fy = h * 0.115;
+      ctx.strokeStyle = rgba('#000000', 0.5);
+      ctx.lineWidth = Math.max(1, w * 0.022);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.32, fy - h * 0.02);
+      ctx.quadraticCurveTo(w * 0.5, fy - h * 0.045, w * 0.68, fy - h * 0.02);
+      ctx.stroke();
+      ctx.fillStyle = rgba('#0d0f11', 0.85);
+      for (const u of [0.4, 0.6]) {
+        ctx.beginPath(); ctx.ellipse(w * u, fy + h * 0.012, w * 0.055, h * 0.012, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = rgba(ironLight, 0.45);
+      ctx.lineWidth = Math.max(1, w * 0.026);
+      ctx.beginPath(); ctx.moveTo(w * 0.5, fy); ctx.lineTo(w * 0.5, fy + h * 0.055); ctx.stroke();
+      ctx.strokeStyle = rgba('#0d0f11', 0.7);
+      ctx.lineWidth = Math.max(1, w * 0.018);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.4, fy + h * 0.075);
+      ctx.quadraticCurveTo(w * 0.5, fy + h * 0.09, w * 0.6, fy + h * 0.075);
+      ctx.stroke();
+      ctx.restore();
+
+      // Hinges on the far leaf, hasp and lock on the near one.
+      ctx.fillStyle = mix(iron, '#000000', 0.35);
+      for (const [t, x0] of [[0.22, 0.11], [0.5, 0.11], [0.8, 0.16]] as [number, number][]) {
+        roundRect(ctx, w * x0, h * t - h * 0.03, w * 0.15, h * 0.06, w * 0.02);
+        ctx.fill();
+      }
+      ctx.fillStyle = mix(iron, '#ffffff', 0.1);
+      roundRect(ctx, w * 0.42, h * 0.46, w * 0.3, h * 0.075, w * 0.02);
+      ctx.fill();
+      ctx.strokeStyle = rgba(ink(a), 0.7);
+      ctx.lineWidth = Math.max(1, w * 0.016);
+      ctx.stroke();
+      ctx.fillStyle = mix(brassBase, '#000000', 0.15);
+      ctx.beginPath(); ctx.arc(w * 0.73, h * 0.5, w * 0.055, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = rgba(ink(a), 0.75);
+      ctx.lineWidth = Math.max(1, w * 0.018);
+      ctx.stroke();
     },
   },
   {
@@ -1524,25 +1589,93 @@ export const INTERIOR_ASSETS: AssetDef[] = [
     id: 'int/bellows', label: 'Bellows', group: 'furniture', sub: 'Forge',
     tags: ['forge', 'bellows', 'air'], aspect: 1.6, defaultWidth: 70, variants: 1,
     kinds: ['dungeon', 'city'],
+    /**
+     * A great bellows is a teardrop: a broad round butt, a straight taper, and
+     * an iron nozzle at the point. The old outline was a lumpy pentagon with
+     * three lines on it, which is why it read as a sack. Drawn properly the
+     * silhouette does most of the work, and the rest is the top board sitting
+     * inside a ring of pleated leather with its nails all round.
+     */
     draw(a) {
-      const { ctx, w, h } = a;
-      groundShadow(ctx, w * 0.52, h * 0.58, w * 0.4, h * 0.28, 0.3);
-      const pts: Vec2[] = [
-        { x: w * 0.08, y: h * 0.36 }, { x: w * 0.7, y: h * 0.2 }, { x: w * 0.92, y: h * 0.5 },
-        { x: w * 0.7, y: h * 0.8 }, { x: w * 0.08, y: h * 0.64 },
-      ];
-      fillPath(ctx, pts, lightGradient(ctx, 0, 0, w, h, mix(woodBase, '#3a2a1a', 0.2), 0.2, 0.3));
-      inkLine(ctx, pts, rgba(ink(a), 0.7), Math.max(1, w * 0.014), true);
-      ctx.strokeStyle = rgba(woodDark, 0.5); ctx.lineWidth = Math.max(1, w * 0.012);
-      for (let i = 1; i < 4; i++) {
-        const t = 0.1 + i * 0.18;
+      const { ctx, w, h, rng } = a;
+      groundShadow(ctx, w * 0.46, h * 0.58, w * 0.44, h * 0.34, 0.32);
+      const cy = h * 0.5, back = w * 0.1, tip = w * 0.86, halfW = h * 0.34;
+      const body = () => {
         ctx.beginPath();
-        ctx.moveTo(w * (0.08 + t * 0.6), h * (0.36 - t * 0.16));
-        ctx.lineTo(w * (0.08 + t * 0.6), h * (0.64 + t * 0.16));
+        ctx.moveTo(tip, cy - h * 0.045);
+        ctx.bezierCurveTo(w * 0.55, cy - halfW * 0.92, w * 0.36, cy - halfW, back + halfW * 0.9, cy - halfW * 0.8);
+        ctx.bezierCurveTo(back - halfW * 0.25, cy - halfW * 0.55, back - halfW * 0.25, cy + halfW * 0.55, back + halfW * 0.9, cy + halfW * 0.8);
+        ctx.bezierCurveTo(w * 0.36, cy + halfW, w * 0.55, cy + halfW * 0.92, tip, cy + h * 0.045);
+        ctx.closePath();
+      };
+      // The leather, dark and slightly greasy.
+      outlined(a, body, lightGradient(ctx, 0, cy - halfW, 0, cy + halfW,
+        mix('#3b2718', a.tint ?? '#3b2718', a.tint ? a.tintStrength * 0.5 : 0), 0.2, 0.36), 0.75, 0.016);
+
+      ctx.save();
+      body();
+      ctx.clip();
+      // Pleats, tightening toward the nozzle where the leather has less room.
+      ctx.strokeStyle = rgba('#1d1207', 0.4);
+      for (let i = 0; i < 7; i++) {
+        const t = 0.1 + i * 0.115;
+        const x = back + (tip - back) * t;
+        const sp = halfW * (1 - t * 0.85);
+        ctx.lineWidth = Math.max(1, w * 0.011);
+        ctx.beginPath();
+        ctx.moveTo(x, cy - sp);
+        ctx.quadraticCurveTo(x + w * 0.02, cy, x, cy + sp);
         ctx.stroke();
       }
-      ctx.fillStyle = ironLight;
-      ctx.beginPath(); ctx.arc(w * 0.94, h * 0.5, w * 0.03, 0, Math.PI * 2); ctx.fill();
+      // The top board: a wooden panel inside the leather, not the whole shape.
+      // The shadow round it is what sets it down into the leather.
+      const bx = back + halfW * 0.8, brx = halfW * 0.72, bry = halfW * 0.6;
+      ctx.fillStyle = rgba('#0d0904', 0.35);
+      ctx.beginPath();
+      ctx.ellipse(bx + w * 0.008, cy + h * 0.012, brx * 1.06, bry * 1.08, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = lightGradient(ctx, 0, cy - bry, 0, cy + bry, mix(wood(a), '#c69a5e', 0.4), 0.24, 0.3);
+      ctx.beginPath();
+      ctx.ellipse(bx, cy, brx, bry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = rgba(woodDark, 0.8);
+      ctx.lineWidth = Math.max(1, w * 0.013);
+      ctx.stroke();
+      // The board is two planks with the valve slot between them.
+      ctx.beginPath();
+      ctx.moveTo(bx, cy - bry); ctx.lineTo(bx, cy + bry);
+      ctx.stroke();
+      ctx.fillStyle = rgba('#120d08', 0.6);
+      roundRect(ctx, bx - brx * 0.1, cy - bry * 0.34, brx * 0.2, bry * 0.68, brx * 0.08);
+      ctx.fill();
+
+      // Nails round the leather edge — clipped, so none of them float free.
+      ctx.fillStyle = rgba(ironLight, 0.85);
+      for (let i = 0; i < 18; i++) {
+        const ang = (i / 18) * Math.PI * 2;
+        const x = bx + Math.cos(ang) * brx * 1.28;
+        const y = cy + Math.sin(ang) * bry * 1.3;
+        ctx.beginPath(); ctx.arc(x, y, w * 0.009, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+
+      // The iron loop the smith's boy hauls on, and the tuyère at the point.
+      ctx.strokeStyle = mix(iron, '#000000', 0.2);
+      ctx.lineWidth = Math.max(1.5, w * 0.022);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(back + halfW * 0.02, cy, halfW * 0.3, Math.PI * 0.62, Math.PI * 1.38);
+      ctx.stroke();
+      ctx.fillStyle = lightGradient(ctx, 0, cy - h * 0.06, 0, cy + h * 0.06, iron, 0.3, 0.35);
+      roundRect(ctx, tip - w * 0.02, cy - h * 0.055, w * 0.16, h * 0.11, h * 0.02);
+      ctx.fill();
+      ctx.strokeStyle = rgba(ink(a), 0.75);
+      ctx.lineWidth = Math.max(1, w * 0.014);
+      ctx.stroke();
+      ctx.fillStyle = rgba('#120d08', 0.9);
+      ctx.beginPath();
+      ctx.ellipse(tip + w * 0.13, cy, w * 0.012, h * 0.035, 0, 0, Math.PI * 2);
+      ctx.fill();
     },
   },
   {

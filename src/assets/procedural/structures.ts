@@ -22,7 +22,20 @@ import type { Vec2, MapKind } from '../../core/types';
 // --- Shared colour + shape helpers -----------------------------------------
 
 const ink = (a: AssetDrawArgs) => a.palette.ink;
-const stoneC = (a: AssetDrawArgs) => (a.tint ? mix(mix(a.palette.rock, '#8a8175', 0.45), a.tint, a.tintStrength * 0.6) : mix(a.palette.rock, '#8a8175', 0.45));
+/**
+ * The face of a piece of top-down masonry, recoloured toward whatever material
+ * it is built of.
+ *
+ * The fraction is what keeps a tinted tower a tower. Everything drawn on top of
+ * this — the merlon shadows, the lit face of the drum, the ink — is derived
+ * from it, so pushing all the way to the material's own colour is safe for the
+ * shading but not for the *value*: a basalt drum at full strength is a black
+ * disc with a black outline. Holding back a fifth keeps the piece separable
+ * from the wall it stands in, which is also what a real drum does — it catches
+ * the light the curtain beside it does not.
+ */
+const stoneBase = (a: AssetDrawArgs) => mix(a.palette.rock, '#8a8175', 0.45);
+const stoneC = (a: AssetDrawArgs) => (a.tint ? mix(stoneBase(a), a.tint, a.tintStrength * 0.8) : stoneBase(a));
 const woodC = (a: AssetDrawArgs) => (a.tint ? mix('#6b4a2a', a.tint, a.tintStrength) : '#6b4a2a');
 const woodDark = '#3f2b16';
 const plasterC = (a: AssetDrawArgs) => mix(a.palette.parchment, '#c9b89a', 0.5);
@@ -71,6 +84,21 @@ function blockRound(a: AssetDrawArgs, x: number, y: number, w: number, h: number
  * ridge line, a shadow on the lee slope, gable walls peeking past the eaves
  * at the ridge ends, and roofing texture that varies by material.
  */
+/**
+ * A pitched roof seen from above.
+ *
+ * From directly overhead a roof is a rectangle, which is why this used to draw
+ * one: a flat slab with a line down it. But nobody looks at a battle map from
+ * directly overhead — the light is always coming from somewhere, and what tells
+ * you a building is a building rather than a crate is the pair of slopes
+ * meeting at a ridge, the shadow the eaves throw on the ground, and the
+ * courses of whatever it is covered in running along the pitch.
+ *
+ * So the roof is drawn as two planes, each shaded from its eaves up to the
+ * ridge; the plane facing the light gets the highlight, the other gets the
+ * shade, and the ridge is a board between them. `vertical` says the ridge runs
+ * down the image, so the planes are left and right of it.
+ */
 function pitchedRoof(
   a: AssetDrawArgs, x: number, y: number, w: number, h: number,
   color: string, style: 'thatch' | 'tile' | 'slate', vertical = true,
@@ -78,60 +106,184 @@ function pitchedRoof(
   const { ctx, rng } = a;
   const overhang = Math.min(w, h) * 0.08;
   const rx = x - overhang, ry = y - overhang, rw = w + overhang * 2, rh = h + overhang * 2;
-  const gw = Math.min(w, h) * 0.24, gh = overhang * 1.3;
+  const unit = Math.min(rw, rh);
+  const radius = unit * 0.05;
+
+  // --- the shadow the overhang throws -------------------------------------
   ctx.save();
-  ctx.fillStyle = mix(plasterC(a), '#000000', 0.1);
-  if (vertical) {
-    tri(ctx, rx + rw * 0.5, ry + overhang * 0.15, gw, gh, 'up');
-    tri(ctx, rx + rw * 0.5, ry + rh - overhang * 0.15, gw, gh, 'down');
-  } else {
-    tri(ctx, rx + overhang * 0.15, ry + rh * 0.5, gw, gh, 'left');
-    tri(ctx, rx + rw - overhang * 0.15, ry + rh * 0.5, gw, gh, 'right');
-  }
+  ctx.fillStyle = rgba('#000000', 0.3);
+  ctx.filter = `blur(${Math.max(1, unit * 0.05)}px)`;
+  roundRect(ctx, rx + unit * 0.055, ry + unit * 0.07, rw, rh, radius);
+  ctx.fill();
   ctx.restore();
 
   ctx.save();
-  roundRect(ctx, rx, ry, rw, rh, Math.min(rw, rh) * 0.06);
+  roundRect(ctx, rx, ry, rw, rh, radius);
   ctx.clip();
-  ctx.fillStyle = lightGradient(ctx, rx, ry, vertical ? rx + rw : rx, vertical ? ry : ry + rh, color, 0.22, 0.3);
+
+  // --- the two planes ------------------------------------------------------
+  // A flat plane under a directional light is evenly lit, so most of the work
+  // here is done by the *step* at the ridge: the slope facing the light and
+  // the slope facing away are two different values with a hard edge between
+  // them, and that edge is what says "roof" rather than "box". The ramps at
+  // either end are the shadow the wall throws back up under the overhang.
+  const ramp = ctx.createLinearGradient(
+    rx, ry, vertical ? rx + rw : rx, vertical ? ry : ry + rh,
+  );
+  ramp.addColorStop(0, mix(color, '#000000', 0.22));
+  ramp.addColorStop(0.09, mix(color, '#ffffff', 0.22));
+  ramp.addColorStop(0.485, mix(color, '#ffffff', 0.34));
+  ramp.addColorStop(0.5, mix(color, '#000000', 0.2));
+  ramp.addColorStop(0.91, mix(color, '#000000', 0.3));
+  ramp.addColorStop(1, mix(color, '#000000', 0.46));
+  ctx.fillStyle = ramp;
   ctx.fillRect(rx, ry, rw, rh);
-  ctx.fillStyle = rgba('#000000', 0.14);
-  if (vertical) ctx.fillRect(rx + rw / 2, ry, rw / 2, rh); else ctx.fillRect(rx, ry + rh / 2, rw, rh / 2);
+
+  // --- what it is covered in ----------------------------------------------
   if (style === 'thatch') {
-    for (let i = 0; i < 18; i++) {
-      const px = rng.float(rx + rw * 0.04, rx + rw * 0.96);
-      const py = rng.float(ry + rh * 0.04, ry + rh * 0.96);
-      ctx.fillStyle = mix(color, rng.bool() ? '#2a1e0c' : '#f2e4b0', rng.float(0.05, 0.22));
+    // Thatch is laid in courses along the eaves but the stalks themselves run
+    // down the pitch, and from above that is the whole texture: hundreds of
+    // fine parallel lines from ridge to eaves, cut off square at the bottom.
+    // Not the scattered blotches this used to draw, which read as gravel.
+    ctx.save();
+    ctx.lineCap = 'butt';
+    const stalks = Math.max(14, Math.round((vertical ? rh : rw) / (unit * 0.035)));
+    for (let i = 0; i < stalks; i++) {
+      const t = (i + rng.float(0.2, 0.8)) / stalks;
+      ctx.lineWidth = Math.max(0.6, unit * rng.float(0.006, 0.014));
+      ctx.strokeStyle = rgba(rng.bool(0.55) ? '#3a2a10' : '#f6ecc4', rng.float(0.05, 0.14));
       ctx.beginPath();
-      ctx.ellipse(px, py, Math.min(w, h) * 0.05, Math.min(w, h) * 0.024, rng.float(0, Math.PI), 0, Math.PI * 2);
-      ctx.fill();
+      if (vertical) { ctx.moveTo(rx, ry + rh * t); ctx.lineTo(rx + rw, ry + rh * t); }
+      else { ctx.moveTo(rx + rw * t, ry); ctx.lineTo(rx + rw * t, ry + rh); }
+      ctx.stroke();
     }
+    // The fringe of cut ends along each eaves.
+    const fringe = unit * 0.1;
+    for (let i = 0; i < stalks; i++) {
+      const t = (i + rng.float(0.15, 0.85)) / stalks;
+      const len = fringe * rng.float(0.5, 1);
+      ctx.lineWidth = Math.max(1, unit * 0.016);
+      ctx.strokeStyle = rgba(rng.bool() ? '#2a1e0c' : '#ffffff', rng.float(0.08, 0.2));
+      for (const near of [true, false]) {
+        ctx.beginPath();
+        if (vertical) {
+          const x0 = near ? rx : rx + rw;
+          ctx.moveTo(x0, ry + rh * t); ctx.lineTo(x0 + (near ? len : -len), ry + rh * t);
+        } else {
+          const y0 = near ? ry : ry + rh;
+          ctx.moveTo(rx + rw * t, y0); ctx.lineTo(rx + rw * t, y0 + (near ? len : -len));
+        }
+        ctx.stroke();
+      }
+    }
+    // Patchy weathering, broad and low-contrast — new straw against old.
+    for (let i = 0; i < 5; i++) {
+      const px = rng.float(rx, rx + rw), py = rng.float(ry, ry + rh);
+      const r = unit * rng.float(0.18, 0.34);
+      const g = ctx.createRadialGradient(px, py, 0, px, py, r);
+      const c = rng.bool() ? '#3a2a10' : '#f2e4b0';
+      g.addColorStop(0, rgba(c, 0.1));
+      g.addColorStop(1, rgba(c, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(px - r, py - r, r * 2, r * 2);
+    }
+    ctx.restore();
   } else {
-    const spacing = Math.min(w, h) * (style === 'slate' ? 0.09 : 0.13);
-    ctx.strokeStyle = rgba('#000000', style === 'slate' ? 0.2 : 0.24);
-    ctx.lineWidth = Math.max(1, Math.min(w, h) * 0.018);
+    // Tile and slate are laid in courses stepping down the slope, each course
+    // lapping the one below — so the line that shows is the shadow under the
+    // lap, not a scored line. Slate lays finer.
+    const step = unit * (style === 'slate' ? 0.085 : 0.125);
     const span = vertical ? rw : rh;
-    const rows = Math.max(3, Math.round(span / spacing));
+    const rows = Math.max(3, Math.round(span / step));
+    ctx.lineWidth = Math.max(1, unit * (style === 'slate' ? 0.014 : 0.018));
     for (let i = 1; i < rows; i++) {
       const t = i / rows;
+      ctx.strokeStyle = rgba('#000000', style === 'slate' ? 0.22 : 0.26);
       ctx.beginPath();
       if (vertical) { ctx.moveTo(rx + rw * t, ry); ctx.lineTo(rx + rw * t, ry + rh); }
       else { ctx.moveTo(rx, ry + rh * t); ctx.lineTo(rx + rw, ry + rh * t); }
       ctx.stroke();
+      // The lit edge of the course below, catching the sun over the lap.
+      ctx.strokeStyle = rgba('#ffffff', 0.13);
+      ctx.beginPath();
+      const o = ctx.lineWidth;
+      if (vertical) { ctx.moveTo(rx + rw * t + o, ry); ctx.lineTo(rx + rw * t + o, ry + rh); }
+      else { ctx.moveTo(rx, ry + rh * t + o); ctx.lineTo(rx + rw, ry + rh * t + o); }
+      ctx.stroke();
     }
+    // Perpends, staggered course to course, so the covering reads as units.
+    const across = Math.max(3, Math.round((vertical ? rh : rw) / (step * 1.6)));
+    ctx.strokeStyle = rgba('#000000', 0.12);
+    ctx.lineWidth = Math.max(1, unit * 0.01);
+    for (let i = 0; i < rows; i++) {
+      const t0 = i / rows, t1 = (i + 1) / rows;
+      for (let j = 0; j < across; j++) {
+        const u = (j + (i % 2 ? 0.5 : 0)) / across;
+        ctx.beginPath();
+        if (vertical) {
+          ctx.moveTo(rx + rw * t0, ry + rh * u); ctx.lineTo(rx + rw * t1, ry + rh * u);
+        } else {
+          ctx.moveTo(rx + rw * u, ry + rh * t0); ctx.lineTo(rx + rw * u, ry + rh * t1);
+        }
+        ctx.stroke();
+      }
+    }
+  }
+
+  // --- the ridge -----------------------------------------------------------
+  // Thatch is finished with a rolled and pegged ridge that sits proud; tile
+  // and slate take a course of ridge tiles. Either way it is a band with a
+  // shadow under it, not a scored line.
+  const ridgeW = unit * (style === 'thatch' ? 0.15 : 0.08);
+  // Lit half then shaded half, so the ridge is itself a little roof.
+  ctx.fillStyle = mix(color, '#ffffff', style === 'thatch' ? 0.34 : 0.26);
+  if (vertical) ctx.fillRect(rx + rw / 2 - ridgeW * 0.5, ry, ridgeW * 0.55, rh);
+  else ctx.fillRect(rx, ry + rh / 2 - ridgeW * 0.5, rw, ridgeW * 0.55);
+  ctx.fillStyle = mix(color, '#000000', 0.3);
+  if (vertical) ctx.fillRect(rx + rw / 2 - ridgeW * 0.5 + ridgeW * 0.55, ry, ridgeW * 0.45, rh);
+  else ctx.fillRect(rx, ry + rh / 2 - ridgeW * 0.5 + ridgeW * 0.55, rw, ridgeW * 0.45);
+  // and the shadow it drops onto the slope below it
+  ctx.fillStyle = rgba('#000000', 0.16);
+  if (vertical) ctx.fillRect(rx + rw / 2 + ridgeW * 0.5, ry, ridgeW * 0.4, rh);
+  else ctx.fillRect(rx, ry + rh / 2 + ridgeW * 0.5, rw, ridgeW * 0.4);
+  if (style === 'thatch') {
+    // A thatched ridge is held down by liggers pinned in a zigzag, which is
+    // the one detail that says "thatch" and not "a lighter stripe".
+    ctx.strokeStyle = rgba(ink(a), 0.4);
+    ctx.lineWidth = Math.max(1, unit * 0.013);
+    const pegs = Math.max(6, Math.round((vertical ? rh : rw) / (unit * 0.085)));
+    ctx.beginPath();
+    for (let i = 0; i <= pegs; i++) {
+      const t = i / pegs;
+      const off = (i % 2 ? 0.34 : -0.34) * ridgeW;
+      const px = vertical ? rx + rw / 2 + off : rx + rw * t;
+      const py = vertical ? ry + rh * t : ry + rh / 2 + off;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  // --- verge ---------------------------------------------------------------
+  // At the gable end the roof oversails the wall, so what shows from above is
+  // the barge board along that edge, with the ridge running out to meet it —
+  // not the wall. The wedge of plaster that used to poke out past each end
+  // read as an arrowhead, which is not a thing roofs have.
+  const verge = overhang * 1.05;
+  ctx.fillStyle = rgba(mix(color, ink(a), 0.6), 0.5);
+  if (vertical) {
+    ctx.fillRect(rx, ry, rw, verge);
+    ctx.fillRect(rx, ry + rh - verge, rw, verge);
+  } else {
+    ctx.fillRect(rx, ry, verge, rh);
+    ctx.fillRect(rx + rw - verge, ry, verge, rh);
   }
   ctx.restore();
 
+  // --- eaves ---------------------------------------------------------------
   ctx.save();
-  ctx.strokeStyle = rgba(ink(a), 0.5);
-  ctx.lineWidth = Math.max(1, Math.min(w, h) * 0.022);
-  ctx.beginPath();
-  if (vertical) { ctx.moveTo(rx + rw / 2, ry); ctx.lineTo(rx + rw / 2, ry + rh); }
-  else { ctx.moveTo(rx, ry + rh / 2); ctx.lineTo(rx + rw, ry + rh / 2); }
-  ctx.stroke();
   ctx.strokeStyle = rgba(ink(a), 0.72);
-  ctx.lineWidth = Math.max(1, Math.min(w, h) * 0.026);
-  roundRect(ctx, rx, ry, rw, rh, Math.min(rw, rh) * 0.06);
+  ctx.lineWidth = Math.max(1, unit * 0.026);
+  roundRect(ctx, rx, ry, rw, rh, radius);
   ctx.stroke();
   ctx.restore();
 }

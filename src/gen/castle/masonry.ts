@@ -51,6 +51,8 @@ export interface StencilOptions {
   drift?: number;
   seed?: number;
   alpha?: number;
+  /** How much ground one texture tile covers here. See `TextureOptions`. */
+  detail?: number;
 }
 
 /**
@@ -65,7 +67,7 @@ export function stencil(dst: CanvasRenderingContext2D, m: Mask, textureId: strin
   const tex = acquireScratch(m.w, m.h);
   const tctx = ctxOf(tex);
   tctx.translate(-m.x, -m.y);
-  fillTexture(tctx, m.x + m.w, m.y + m.h, textureId, paletteId);
+  fillTexture(tctx, m.x + m.w, m.y + m.h, textureId, paletteId, opts.detail);
   if (opts.tint) {
     tctx.save();
     tctx.globalAlpha = opts.tintAlpha ?? 0.3;

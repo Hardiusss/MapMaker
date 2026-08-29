@@ -18,6 +18,7 @@ import { isRaster } from '../core/types';
 import { ensureVttLayers, rasterByRole } from '../core/doc';
 import { ctxOf } from '../util/canvas';
 import { t } from '../i18n';
+import { plural } from '../i18n/plural';
 import {
   planCurtain, nearestSpot, curtainWalls, curtainStamps, curtainLights,
   paintCurtainBody, paintCurtainFloor, paintCurtainShadow,
@@ -28,7 +29,7 @@ export type CastleSettings = CurtainOptions;
 
 export const castleSettings: CastleSettings = {
   thickness: 10,
-  material: 'stone',
+  material: 'granite',
   towers: 'corners+spacing',
   towerSpacing: 120,
   towerShape: 'round',
@@ -153,7 +154,9 @@ function commit(editor: Editor): void {
 
   editor.status(t('tool.castle.built', {
     length: Math.round(plan.lengthUnits), unit: plan.unitLabel,
-    walls: walls.length, towers: plan.towers.length, lights: lights.length,
+    walls: plural('count.wallSegments', walls.length),
+    towers: plural('count.towers', plan.towers.length),
+    lights: plural('count.lights', lights.length),
   }));
 }
 
@@ -302,7 +305,8 @@ function poly(ctx: CanvasRenderingContext2D, pts: Vec2[], close: boolean): void 
 function label(ctx: CanvasRenderingContext2D, z: number, plan: CurtainPlan): void {
   const anchor = plan.pts[plan.pts.length - 1];
   const text = t('tool.castle.readout', {
-    length: Math.round(plan.lengthUnits), unit: plan.unitLabel, towers: plan.towers.length,
+    length: Math.round(plan.lengthUnits), unit: plan.unitLabel,
+    towers: plural('count.towers', plan.towers.length),
   });
   ctx.font = `${13 / z}px system-ui, sans-serif`;
   ctx.textAlign = 'left';

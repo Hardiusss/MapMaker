@@ -120,7 +120,39 @@ export interface GridConfig {
   unitLabel: string;
   /** Draw a heavier line every N cells. Zero disables. */
   majorEvery: number;
+  /**
+   * How hexes are numbered on the map. Absent means none, which is what every
+   * document written before hex numbering existed should get.
+   *
+   * A hex crawl is run by calling hexes out loud — "they camp in 0407" — so the
+   * numbers have to be on the map the players see, not only in the GM's notes.
+   * Which scheme depends on what else the table uses: `colRow` is the wargame
+   * and hex-crawl convention and the one to reach for, `axial` is what a GM
+   * with their own tooling will want because it is what hex code is written
+   * against.
+   */
+  hexLabels?: HexLabelStyle;
+  /**
+   * Ground a party covers in a day, in `unitLabel` units. Zero or absent means
+   * distances are reported as distance and nothing else.
+   *
+   * This sits with the grid rather than in the document's metadata because it
+   * is the same kind of fact as `unitsPerCell`: the chain that turns a
+   * measurement in pixels into something a GM can say out loud. One hex is six
+   * miles, a party makes eighteen miles a day, so the pass is four days off.
+   */
+  travelPerDay?: number;
 }
+
+/**
+ * Hex numbering schemes.
+ *
+ * `colRow` is the four-digit designation every hex-crawl and wargame map has
+ * used since the sixties — column then row, both padded, so 0407 is the fourth
+ * column and the seventh row. `axial` is the two-axis coordinate hex code is
+ * written against, negative values and all.
+ */
+export type HexLabelStyle = 'none' | 'colRow' | 'axial';
 
 // ---------------------------------------------------------------------------
 // Objects
