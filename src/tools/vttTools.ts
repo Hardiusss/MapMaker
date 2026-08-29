@@ -3,7 +3,8 @@ import type { Tool } from './types';
 import type { Editor } from '../core/editor';
 import type { Vec2, WallKind } from '../core/types';
 import { makeWall, makeLight, makeNote } from '../core/factories';
-import { measureDistance } from '../render/grid';
+import { measureDistance, hexDesignationAt, hexCenter, pointToHex, type Measurement } from '../render/grid';
+import { plural } from '../i18n/plural';
 import { WALL_COLORS } from '../render/renderer';
 import { rgba } from '../core/color';
 import { pointSegmentDistance, dist } from '../core/geometry';
@@ -148,7 +149,14 @@ export const noteTool: Tool = {
   get hint() { return t('tool.note.hint'); },
   onPointerDown(c) {
     if (c.button !== 0) return;
-    const n = makeNote(c.map.x, c.map.y, 'New Note');
+    // On a numbered hex map the note *is* the hex's entry in the key, so it is
+    // dropped on the hex centre and named for it. A GM who calls out 0407 can
+    // then find the note by searching for 0407, which is the whole point of
+    // numbering the hexes in the first place.
+    const g = c.editor.doc.grid;
+    const hex = hexDesignationAt(c.map, g);
+    const at = hex ? hexCenter(pointToHex(c.map, g).col, pointToHex(c.map, g).row, g) : c.map;
+    const n = makeNote(at.x, at.y, hex ? t('note.hexTitle', { hex }) : t('note.newTitle'));
     c.editor.addNote(n);
     c.editor.openDialog('note', { id: n.id });
   },
@@ -161,6 +169,26 @@ export const noteTool: Tool = {
 let measureA: Vec2 | null = null;
 let measureB: Vec2 | null = null;
 
+/**
+ * What the measurement says out loud.
+ *
+ * Distance alone is not the answer a GM wants on an overland map. "Thirty
+ * miles" is arithmetic; "five hexes, thirty miles, two days" is a ruling they
+ * can make at the table without doing the division themselves.
+ */
+function measurementText(d: Measurement): string {
+  const parts: string[] = [];
+  if (d.hex) parts.push(plural('count.hexes', Math.round(d.cells)));
+  parts.push(d.label);
+  if (d.days !== undefined) {
+    parts.push(d.days < 1
+      ? plural('count.hours', Math.max(1, Math.round(d.days * 24)))
+      : plural('count.days', +d.days.toFixed(d.days < 10 ? 1 : 0)));
+  }
+  if (!d.hex) parts.push(t('tool.measure.cells', { cells: d.cells.toFixed(1) }));
+  return parts.join(' · ');
+}
+
 export const measureTool: Tool = {
   id: 'measure',
   get label() { return t('tool.measure'); },
@@ -172,7 +200,7 @@ export const measureTool: Tool = {
   onPointerUp(c) {
     if (measureA && measureB) {
       const d = measureDistance(measureA, measureB, c.editor.doc.grid);
-      c.editor.status(t('tool.status.distance', { label: d.label, cells: d.cells.toFixed(1) }));
+      c.editor.status(t('tool.status.distance', { label: measurementText(d) }));
     }
   },
   onKeyDown(c) {
@@ -198,7 +226,7 @@ export const measureTool: Tool = {
     const mid = { x: (measureA.x + measureB.x) / 2, y: (measureA.y + measureB.y) / 2 };
     ctx.font = `${16 / z}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
-    const text = d.label;
+    const text = measurementText(d);
     const tw = ctx.measureText(text).width;
     ctx.fillStyle = rgba('#12100e', 0.85);
     ctx.fillRect(mid.x - tw / 2 - 6 / z, mid.y - 22 / z, tw + 12 / z, 22 / z);

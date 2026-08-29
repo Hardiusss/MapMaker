@@ -1,5 +1,5 @@
 /** Grid drawing plus the hex/square maths used for snapping and generators. */
-import type { GridConfig, Rect, Vec2 } from '../core/types';
+import type { GridConfig, HexLabelStyle, Rect, Vec2 } from '../core/types';
 import { rgba } from '../core/color';
 
 export function drawGrid(ctx: CanvasRenderingContext2D, grid: GridConfig, area: Rect, zoom = 1): void {
@@ -14,8 +14,8 @@ export function drawGrid(ctx: CanvasRenderingContext2D, grid: GridConfig, area: 
 
   switch (grid.type) {
     case 'square': drawSquare(ctx, grid, area); break;
-    case 'hexPointy': drawHex(ctx, grid, area, true); break;
-    case 'hexFlat': drawHex(ctx, grid, area, false); break;
+    case 'hexPointy': drawHex(ctx, grid, area, true, zoom); break;
+    case 'hexFlat': drawHex(ctx, grid, area, false, zoom); break;
     case 'isometric': drawIso(ctx, grid, area); break;
   }
   ctx.restore();
@@ -109,7 +109,15 @@ export function hexCorners(center: Vec2, g: GridConfig): Vec2[] {
   return pts;
 }
 
-function drawHex(ctx: CanvasRenderingContext2D, g: GridConfig, area: Rect, pointy: boolean): void {
+/**
+ * Below this many screen pixels across, a hex has no room for its number and
+ * the map is better off without four digits smeared over every cell.
+ */
+const HEX_LABEL_MIN_PX = 38;
+
+function drawHex(
+  ctx: CanvasRenderingContext2D, g: GridConfig, area: Rect, pointy: boolean, zoom: number,
+): void {
   const m = hexMetrics(g.size, pointy);
   const cols = Math.ceil(area.w / m.colStep) + 2;
   const rows = Math.ceil(area.h / m.rowStep) + 2;
@@ -127,6 +135,108 @@ function drawHex(ctx: CanvasRenderingContext2D, g: GridConfig, area: Rect, point
     }
   }
   ctx.stroke();
+
+  const style = g.hexLabels ?? 'none';
+  if (style === 'none' || g.size * zoom < HEX_LABEL_MIN_PX) return;
+
+  // The number sits in the upper part of the hex, the way a printed hex map
+  // does it: it stays out of the way of whatever terrain is stamped in the
+  // middle, and a column of them reads as a column.
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, ctx.globalAlpha * 2.2);
+  ctx.fillStyle = ctx.strokeStyle as string;
+  ctx.font = `${Math.round(g.size * 0.17)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let r = r0; r < r0 + rows; r++) {
+    for (let c = c0; c < c0 + cols; c++) {
+      const center = hexCenter(c, r, g);
+      ctx.fillText(hexLabel(c, r, style, pointy), center.x, center.y - m.height * 0.3);
+    }
+  }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Hex coordinates
+// ---------------------------------------------------------------------------
+
+/**
+ * Offset column/row to axial (q, r).
+ *
+ * `hexCenter` lays pointy-top hexes out with the odd rows pushed right and
+ * flat-top hexes with the odd columns pushed down — "odd-r" and "odd-q" in the
+ * usual naming — so the shear that has to be undone is the one those offsets
+ * introduce. The remainder is written the long way because `-1 % 2` is `-1` in
+ * JavaScript and a map that runs left of the origin would come out sheared the
+ * wrong way for half its width.
+ */
+export function hexToAxial(col: number, row: number, pointy: boolean): { q: number; r: number } {
+  if (pointy) {
+    const parity = ((row % 2) + 2) % 2;
+    return { q: col - (row - parity) / 2, r: row };
+  }
+  const parity = ((col % 2) + 2) % 2;
+  return { q: col, r: row - (col - parity) / 2 };
+}
+
+/**
+ * How many hexes apart two hexes are.
+ *
+ * Not the straight-line distance: on a hex grid the six neighbours are all one
+ * step away, which is the whole reason to use hexes, and measuring in pixels
+ * makes a diagonal move cost more than a straight one. In cube coordinates it
+ * is half the sum of the three axis differences, which is the number of steps
+ * a rider actually takes.
+ */
+export function hexDistance(
+  a: { col: number; row: number }, b: { col: number; row: number }, pointy: boolean,
+): number {
+  const p = hexToAxial(a.col, a.row, pointy);
+  const q = hexToAxial(b.col, b.row, pointy);
+  const dq = p.q - q.q, dr = p.r - q.r;
+  return (Math.abs(dq) + Math.abs(dq + dr) + Math.abs(dr)) / 2;
+}
+
+const pad = (n: number): string => (n < 0 ? '-' : '') + String(Math.abs(n)).padStart(2, '0');
+
+/** One hex's designation under the given scheme. */
+export function hexLabel(col: number, row: number, style: HexLabelStyle, pointy: boolean): string {
+  if (style === 'axial') {
+    const { q, r } = hexToAxial(col, row, pointy);
+    return `${q},${r}`;
+  }
+  // One-based, because a printed hex map has no column zero.
+  return `${pad(col + 1)}${pad(row + 1)}`;
+}
+
+/**
+ * How many cells a document spans.
+ *
+ * Not `width / grid.size`: on a hex grid the rows are three quarters of a hex
+ * apart, so dividing by the size counts about fifteen per cent too few of them.
+ * The status bar and the canvas summary both used to get this wrong and
+ * disagree with the hex numbering drawn beside them.
+ */
+export function gridSpan(width: number, height: number, g: GridConfig): { cols: number; rows: number } {
+  const size = Math.max(1, g.size);
+  if (g.type === 'hexPointy' || g.type === 'hexFlat') {
+    const m = hexMetrics(size, g.type !== 'hexFlat');
+    return { cols: Math.round(width / m.colStep), rows: Math.round(height / m.rowStep) };
+  }
+  return { cols: Math.round(width / size), rows: Math.round(height / size) };
+}
+
+/**
+ * The designation of whatever hex a map point falls in, or an empty string if
+ * the document is not on a hex grid or is not numbering them.
+ */
+export function hexDesignationAt(p: Vec2, g: GridConfig): string {
+  if (g.type !== 'hexPointy' && g.type !== 'hexFlat') return '';
+  const style = g.hexLabels ?? 'none';
+  if (style === 'none') return '';
+  const { col, row } = pointToHex(p, g);
+  return hexLabel(col, row, style, g.type !== 'hexFlat');
 }
 
 /** Pixel → hex axial coordinate (offset layout, matching `hexCenter`). */
@@ -176,16 +286,46 @@ export function snapRect(r: Rect, g: GridConfig): Rect {
   return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
 }
 
-/** Human-readable distance between two map points using the grid's units. */
-export function measureDistance(a: Vec2, b: Vec2, g: GridConfig, diagonalRule: 'euclidean' | 'chebyshev' | 'alternating' = 'euclidean'): { cells: number; units: number; label: string } {
-  const dx = Math.abs(b.x - a.x) / g.size;
-  const dy = Math.abs(b.y - a.y) / g.size;
+export interface Measurement {
+  cells: number;
+  units: number;
+  label: string;
+  /** True when `cells` is a count of hexes rather than a pixel distance. */
+  hex: boolean;
+  /** Days of travel, when the grid says how far a party gets in one. */
+  days?: number;
+}
+
+/**
+ * Human-readable distance between two map points using the grid's units.
+ *
+ * On a hex grid this counts hexes rather than measuring pixels. Those are
+ * different answers — a rider going three hexes up-and-across covers three
+ * hexes, not the 2.6 that a ruler laid over the same two centres reports — and
+ * on a hex crawl the count is the one that matters, because it is what the
+ * day's travel is spent on.
+ */
+export function measureDistance(a: Vec2, b: Vec2, g: GridConfig, diagonalRule: 'euclidean' | 'chebyshev' | 'alternating' = 'euclidean'): Measurement {
+  const hex = g.type === 'hexPointy' || g.type === 'hexFlat';
   let cells: number;
-  if (diagonalRule === 'chebyshev') cells = Math.max(dx, dy);
-  else if (diagonalRule === 'alternating') {
-    const lo = Math.min(dx, dy), hi = Math.max(dx, dy);
-    cells = hi + Math.floor(lo / 2);
-  } else cells = Math.hypot(dx, dy);
+  if (hex) {
+    cells = hexDistance(pointToHex(a, g), pointToHex(b, g), g.type !== 'hexFlat');
+  } else {
+    const dx = Math.abs(b.x - a.x) / g.size;
+    const dy = Math.abs(b.y - a.y) / g.size;
+    if (diagonalRule === 'chebyshev') cells = Math.max(dx, dy);
+    else if (diagonalRule === 'alternating') {
+      const lo = Math.min(dx, dy), hi = Math.max(dx, dy);
+      cells = hi + Math.floor(lo / 2);
+    } else cells = Math.hypot(dx, dy);
+  }
   const units = cells * g.unitsPerCell;
-  return { cells, units, label: `${units.toFixed(units < 10 ? 1 : 0)} ${g.unitLabel}` };
+  const pace = g.travelPerDay ?? 0;
+  return {
+    cells,
+    units,
+    hex,
+    days: pace > 0 ? units / pace : undefined,
+    label: `${units.toFixed(units < 10 ? 1 : 0)} ${g.unitLabel}`,
+  };
 }

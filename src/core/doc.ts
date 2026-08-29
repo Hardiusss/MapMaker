@@ -23,6 +23,11 @@ export function defaultGrid(kind: MapKind): GridConfig {
     unitsPerCell: info.defaultUnits,
     unitLabel: info.defaultUnitLabel,
     majorEvery: info.defaultGrid === 'square' ? 5 : 0,
+    // A hex crawl is numbered and reckoned in days from the moment it opens;
+    // asking a GM to switch both on before the map is any use is a setup step
+    // with no decision in it. Twenty-four miles is a day's march on foot at
+    // three miles an hour, which at six miles to the hex is four hexes.
+    ...(kind === 'hex' ? { hexLabels: 'colRow' as const, travelPerDay: 24 } : null),
   };
 }
 

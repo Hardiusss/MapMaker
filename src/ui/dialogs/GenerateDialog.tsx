@@ -22,6 +22,14 @@ export type GenKind = 'region' | 'operational' | 'dungeon' | 'cave' | 'city' | '
 
 const TAB_IDS: GenKind[] = ['region', 'operational', 'city', 'castle', 'dungeon', 'cave', 'battle'];
 
+/**
+ * Generators that take long enough for a GM to wonder whether anything is
+ * happening. A castle rasterises a few million pixels of masonry; a theatre
+ * runs A* over a whole movement-cost field. Both are seconds, not frames, and
+ * a spinner with no ETA is the same as no information.
+ */
+const SLOW: GenKind[] = ['castle', 'city', 'region', 'operational'];
+
 export function kindToGen(kind: MapKind): GenKind {
   switch (kind) {
     case 'dungeon': return 'dungeon';
@@ -113,7 +121,7 @@ export function GenerateDialog({ initial, onClose }: { initial: GenKind; onClose
           <span className="grow hint">
             {t('gen.hint')}
           </span>
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn" onClick={onClose} disabled={busy}>{t('action.cancel')}</button>
           <button className="btn" onClick={() => run(true)} disabled={busy}>{t('gen.reroll')}</button>
           <button className="btn primary" onClick={() => run(false)} disabled={busy}>
             {busy ? t('gen.busy') : t('action.generate.short')}
@@ -130,9 +138,11 @@ export function GenerateDialog({ initial, onClose }: { initial: GenKind; onClose
       </div>
 
       {busy && (
-        <div className="empty">
+        <div className="empty" role="status" aria-live="polite">
           <div className="spinner" />
-          {t('gen.building')}
+          <p style={{ margin: '10px 0 0' }}>{t('gen.building', { kind: t(`gen.tab.${kind}`).toLowerCase() })}</p>
+          {SLOW.includes(kind) && <p className="hint" style={{ marginTop: 6 }}>{t('gen.buildingSlow')}</p>}
+          <p className="hint" style={{ marginTop: 4 }}>{t('gen.buildingNote')}</p>
         </div>
       )}
 
@@ -154,10 +164,11 @@ function paletteOptions(): { value: string; label: string }[] {
 
 function SeedRow<T extends { seed: number }>({ value, onChange }: { value: T; onChange: (v: T) => void }) {
   const { t } = useLang();
+  const id = React.useId();
   return (
     <div className="field-row" style={{ marginBottom: 12 }}>
-      <label>{t('gen.seed')}</label>
-      <input type="number" style={{ width: 130 }} value={value.seed}
+      <label htmlFor={id}>{t('gen.seed')}</label>
+      <input id={id} type="number" style={{ width: 130 }} value={value.seed}
         onChange={(e) => onChange({ ...value, seed: parseInt(e.target.value, 10) || 1 })} />
       <button className="btn small" onClick={() => onChange({ ...value, seed: randomSeed() })}>{t('gen.roll')}</button>
     </div>

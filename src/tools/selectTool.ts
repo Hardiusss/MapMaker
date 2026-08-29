@@ -212,8 +212,24 @@ export const selectTool: Tool = {
   },
 
   onKeyDown(c) {
+    // Escape drops the selection and abandons whatever drag is in flight —
+    // every other tool cancels on Escape, and this one used to hold on to a
+    // selection you could only clear by clicking empty canvas.
+    if (c.key === 'Escape') {
+      state.mode = 'idle';
+      state.marquee = null;
+      state.handle = null;
+      state.originals.clear();
+      c.editor.selectObjects([]);
+      c.editor.emitChange();
+      return true;
+    }
     const step = c.shift ? 10 : 1;
     const nudge = (dx: number, dy: number) => {
+      // With nothing selected this used to push an empty undo step and mark
+      // the map dirty on every keypress, so leaning on an arrow key filled the
+      // history with edits that changed nothing.
+      if (!c.editor.selection.objectIds.length) return false;
       c.editor.updateObjects(c.editor.selection.objectIds, (o) => ({ x: o.x + dx, y: o.y + dy }), 'Nudge');
       return true;
     };

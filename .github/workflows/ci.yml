@@ -45,6 +45,26 @@ jobs:
       - name: Translation key parity
         run: node tools/check-i18n.mjs
 
+      - name: Hex-grid invariants
+        run: node tools/check-hex.mjs
+
+      # The promise the seed field makes. Checked on the rendered pixels, not
+      # on the document: the two disagreed for a long time.
+      - name: Seeded determinism
+        run: node tools/check-determinism.mjs
+
+      # The colour-blind-safe palette makes a promise the other six do not, so
+      # it is measured rather than trusted.
+      - name: Colour-vision audit
+        run: node tools/check-contrast.mjs
+        env:
+          SHEETS: '0'
+
+      # Slow — three full passes over the same workload — but a leak only
+      # shows up across repeats, which is exactly what no other check does.
+      - name: Memory and cache growth
+        run: node tools/bench-memory.mjs
+
       - name: Keep the failure evidence
         if: failure()
         uses: actions/upload-artifact@v4

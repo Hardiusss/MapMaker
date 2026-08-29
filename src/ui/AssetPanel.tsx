@@ -6,6 +6,7 @@ import {
   registerImageFromDataURL, clearPreviewCache, matchesAsset,
 } from '../assets/library';
 import { useLang } from '../i18n/useLang';
+import { plural } from '../i18n/plural';
 import { assetLabel, shelfLabel, assetAlias } from '../i18n/assetNames';
 import { TEXTURES, texturePreview, type TextureGroup } from '../render/textures';
 import { t } from '../i18n';
@@ -13,16 +14,7 @@ import { stampSettings } from '../tools';
 import { Section } from './components/controls';
 import type { AssetDef, AssetGroup } from '../assets/types';
 
-// The six shelf headers still need `texgroup.*` keys in en.ts / ru.ts; that
-// file is being rewritten elsewhere this week, so they stay English for now.
-const TEXTURE_GROUPS: { group: TextureGroup; label: string }[] = [
-  { group: 'ground', label: 'Ground' },
-  { group: 'vegetation', label: 'Vegetation' },
-  { group: 'water', label: 'Water' },
-  { group: 'rock', label: 'Rock' },
-  { group: 'interior', label: 'Interiors' },
-  { group: 'special', label: 'Special' },
-];
+const TEXTURE_GROUPS: TextureGroup[] = ['ground', 'vegetation', 'water', 'rock', 'interior', 'special'];
 
 /** Texture names live in the UI dictionary; `t()` already falls back to English. */
 function textureLabel(id: string, label: string): string {
@@ -54,17 +46,36 @@ function writeList(key: string, ids: string[]): void {
 
 type Shelf = AssetGroup | 'all' | 'fav' | 'recent';
 
+/**
+ * Where the browser was left.
+ *
+ * The panel unmounts whenever the dock switches tab, and a GM who goes to
+ * Layers to unlock something and comes back should find the shelf they were
+ * on, not the whole library again. Module-level for the same reason the tool
+ * settings are: it has to outlive the component, and it is per-session rather
+ * than per-map so it has no business in the document.
+ */
+const view: { mode: 'assets' | 'textures' | null; group: Shelf; sub: string | null; query: string } = {
+  mode: null, group: 'all', sub: null, query: '',
+};
+
 export function AssetPanel() {
   const editor = useEditorEvents('brush', 'tool', 'change');
   // Captions come from the registry, not from `t()`, so the panel has to
   // subscribe to the language itself or it keeps painting English.
   const { lang } = useLang();
-  const [query, setQuery] = React.useState('');
-  const [group, setGroup] = React.useState<Shelf>('all');
-  const [sub, setSub] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState(view.query);
+  const [group, setGroup] = React.useState<Shelf>(view.group);
+  const [sub, setSub] = React.useState<string | null>(view.sub);
+  // The tool still wins on the first visit — reaching for the brush should land
+  // on textures — but after that the GM's own choice sticks.
   const [mode, setMode] = React.useState<'assets' | 'textures'>(
-    editor.tool === 'brush' || editor.tool === 'fill' ? 'textures' : 'assets',
+    view.mode ?? (editor.tool === 'brush' || editor.tool === 'fill' ? 'textures' : 'assets'),
   );
+  React.useEffect(() => { view.query = query; }, [query]);
+  React.useEffect(() => { view.group = group; }, [group]);
+  React.useEffect(() => { view.sub = sub; }, [sub]);
+  React.useEffect(() => { view.mode = mode; }, [mode]);
   const [favourites, setFavourites] = React.useState<string[]>(() => readList(FAV_KEY));
   const [recent, setRecent] = React.useState<string[]>(() => readList(RECENT_KEY));
   const [, force] = React.useReducer((n: number) => n + 1, 0);
@@ -74,8 +85,13 @@ export function AssetPanel() {
     [group],
   );
 
-  // Switching group invalidates whatever shelf was selected inside the old one.
-  React.useEffect(() => { setSub(null); }, [group]);
+  // Switching group invalidates whatever shelf was selected inside the old one —
+  // but not on the first render, which is restoring a shelf, not changing one.
+  const firstRender = React.useRef(true);
+  React.useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
+    setSub(null);
+  }, [group]);
 
   const assets = React.useMemo(() => {
     if (group === 'fav' || group === 'recent') {
@@ -126,9 +142,7 @@ export function AssetPanel() {
       clearPreviewCache();
       stampSettings.assetId = id;
       editor.setTool('stamp');
-      // Needs a `panel.imported` key in en.ts/ru.ts; that file is owned
-      // elsewhere this week, so the status line stays English for now.
-      editor.status(`Imported ${file.name} as a stamp.`);
+      editor.status(t('panel.imported', { file: file.name }));
       force();
     };
     reader.readAsDataURL(file);
@@ -156,7 +170,7 @@ export function AssetPanel() {
       </div>
 
       <div className="asset-search">
-        <input type="text" placeholder={t('panel.search', { count: assetCount() })} value={query}
+        <input type="text" placeholder={t('panel.search', { stamps: plural('count.stamps', assetCount()) })} value={query}
           onChange={(e) => setQuery(e.target.value)} />
       </div>
 
@@ -222,10 +236,10 @@ export function AssetPanel() {
       ) : (
         <>
           {TEXTURE_GROUPS.map((tg) => {
-            const items = textures.filter((x) => x.group === tg.group);
+            const items = textures.filter((x) => x.group === tg);
             if (!items.length) return null;
             return (
-              <Section key={tg.group} title={tg.label}>
+              <Section key={tg} title={t(`texgroup.${tg}`)}>
                 <div className="texture-grid">
                   {items.map((x) => {
                     const name = textureLabel(x.id, x.label);

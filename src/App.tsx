@@ -14,6 +14,7 @@ import { ExportDialog, type ExportFormat } from './ui/dialogs/ExportDialog';
 import { ShortcutsDialog, FoundryHelpDialog, AboutDialog } from './ui/dialogs/HelpDialog';
 import { TextEditDialog, NoteEditDialog } from './ui/dialogs/QuickEditDialogs';
 import { ImportImageDialog } from './ui/dialogs/ImportImageDialog';
+import { Modal } from './ui/components/controls';
 import { saveProjectAs, openProjectFrom } from './export';
 import { generateRegion } from './gen/region/regionGen';
 import { getTool, TOOLS } from './tools';
@@ -21,6 +22,9 @@ import { randomSeed } from './core/rng';
 import type { MapKind } from './core/types';
 import { installApi } from './api';
 import { startAutosave, readAutosaveMeta, restoreAutosave, clearAutosave, type AutosaveMeta } from './core/autosave';
+import { t } from './i18n';
+import { useLang } from './i18n/useLang';
+import { plural } from './i18n/plural';
 
 type Dialog =
   | { kind: 'none' }
@@ -95,11 +99,11 @@ export default function App() {
       if (!res.cancelled && res.path) {
         editor.filePath = res.path;
         editor.dirty = false;
-        editor.status(`Saved to ${res.path}`);
+        editor.status(t('app.status.saved', { path: res.path }));
         editor.emitChange();
       }
     } catch (err) {
-      editor.status(`Save failed: ${(err as Error).message}`);
+      editor.status(t('app.status.saveFailed', { error: (err as Error).message }));
     }
   }, [editor]);
 
@@ -109,9 +113,9 @@ export default function App() {
       if (!res) return;
       editor.setPalette(res.paletteId);
       editor.setDocument(res.doc, { path: res.path });
-      editor.status(`Opened ${res.path}`);
+      editor.status(t('app.status.opened', { path: res.path }));
     } catch (err) {
-      editor.status(`Could not open that file: ${(err as Error).message}`);
+      editor.status(t('app.status.openFailed', { error: (err as Error).message }));
     }
   }, [editor]);
 
@@ -157,12 +161,12 @@ export default function App() {
 
   /** Turn every blocking prop and shape into VTT walls. */
   const deriveWalls = React.useCallback(() => {
-    editor.status('Deriving walls from map objects…');
+    editor.status(t('app.status.derivingWalls'));
     import('./gen/deriveWalls').then(({ deriveWallsFromDocument }) => {
       const walls = deriveWallsFromDocument(editor.doc);
       editor.addWalls(walls, 'Derive walls');
       editor.setView({ showWalls: true });
-      editor.status(`Added ${walls.length} wall segments.`);
+      editor.status(t('app.status.wallsAdded', { walls: plural('count.wallSegments', walls.length) }));
     });
   }, [editor]);
 
@@ -195,6 +199,7 @@ export default function App() {
           case 'w': e.preventDefault(); editor.setView({ showWalls: !editor.view.showWalls }); return;
           case 'l': e.preventDefault(); editor.setView({ showLightingPreview: !editor.view.showLightingPreview }); return;
           case '0': e.preventDefault(); editor.camera.fit(editor.doc.width, editor.doc.height); editor.events.emit('camera', undefined); return;
+          case '1': e.preventDefault(); editor.camera.setZoom(1); editor.events.emit('camera', undefined); return;
           case '=': case '+': e.preventDefault(); editor.camera.setZoom(editor.camera.zoom * 1.25); editor.events.emit('camera', undefined); return;
           case '-': e.preventDefault(); editor.camera.setZoom(editor.camera.zoom / 1.25); editor.events.emit('camera', undefined); return;
         }
@@ -232,7 +237,7 @@ export default function App() {
     const stop = startAutosave(
       () => ({ doc: editor.doc, paletteId: editor.paletteId, filePath: editor.filePath, dirty: editor.dirty }),
       180_000,
-      () => editor.status('Autosaved.'),
+      () => editor.status(t('app.status.autosaved')),
     );
     return () => { cancelled = true; stop(); };
   }, [editor]);
@@ -285,37 +290,67 @@ export default function App() {
       {dialog.kind === 'import' && <ImportImageDialog onClose={close} />}
 
       {recovery && (
-        <div className="modal-backdrop">
-          <div className="modal narrow">
-            <div className="modal-head"><h2>Recover unsaved work?</h2></div>
-            <div className="modal-body">
-              <p style={{ marginTop: 0 }}>
-                There is an autosaved copy of <strong>{recovery.title}</strong> from{' '}
-                {new Date(recovery.savedAt).toLocaleString()}.
-              </p>
-              <p className="hint">
-                Autosaves are written every few minutes while a map has unsaved changes.
-                Recovering will replace whatever is on screen now.
-              </p>
-            </div>
-            <div className="modal-foot">
-              <button className="btn" onClick={() => { clearAutosave(); setRecovery(null); }}>Discard</button>
-              <span className="grow" />
-              <button className="btn" onClick={() => setRecovery(null)}>Not now</button>
-              <button className="btn primary" onClick={async () => {
-                const res = await restoreAutosave();
-                if (res) {
-                  editor.setPalette(res.paletteId);
-                  editor.setDocument(res.doc, { path: res.filePath });
-                  editor.markDirty();
-                  editor.status('Recovered autosaved map.');
-                }
-                setRecovery(null);
-              }}>Recover</button>
-            </div>
-          </div>
-        </div>
+        <RecoveryDialog
+          meta={recovery}
+          onDiscard={() => { clearAutosave(); setRecovery(null); }}
+          onDismiss={() => setRecovery(null)}
+          onRecover={async () => {
+            const res = await restoreAutosave();
+            if (res) {
+              editor.setPalette(res.paletteId);
+              editor.setDocument(res.doc, { path: res.filePath });
+              editor.markDirty();
+              editor.status(t('app.status.recovered'));
+            }
+            setRecovery(null);
+          }}
+        />
       )}
     </EditorContext.Provider>
+  );
+}
+
+/**
+ * The crash-recovery prompt.
+ *
+ * Built on `Modal` rather than hand-rolled markup so that it behaves like
+ * every other dialog in the app: Escape closes it, the backdrop closes it, and
+ * the first control takes focus. It used to be neither — hardcoded English in
+ * a translated interface, and the one dialog in the app that ignored Escape,
+ * which is the worst place for that since it is the first thing a GM sees
+ * after a crash.
+ *
+ * Escape means "not now": it leaves the autosave on disk, because dismissing a
+ * prompt should never be the same gesture as throwing work away.
+ */
+function RecoveryDialog({ meta, onDiscard, onDismiss, onRecover }: {
+  meta: AutosaveMeta;
+  onDiscard: () => void;
+  onDismiss: () => void;
+  onRecover: () => void;
+}) {
+  const { t: tr } = useLang();
+  return (
+    <Modal
+      title={tr('app.recover.title')}
+      size="narrow"
+      onClose={onDismiss}
+      footer={
+        <>
+          <button className="btn" onClick={onDiscard}>{tr('app.recover.discard')}</button>
+          <span className="grow" />
+          <button className="btn" onClick={onDismiss}>{tr('app.recover.notNow')}</button>
+          <button className="btn primary" onClick={onRecover}>{tr('app.recover.recover')}</button>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0 }}>
+        {tr('app.recover.body', {
+          title: meta.title,
+          when: new Date(meta.savedAt).toLocaleString(),
+        })}
+      </p>
+      <p className="hint">{tr('app.recover.hint')}</p>
+    </Modal>
   );
 }

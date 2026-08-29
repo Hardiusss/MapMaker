@@ -701,12 +701,16 @@ function addRealms(
     rng,
     () => namer.region(),
   );
-  // A pen-and-ink map should not sprout six heraldic colours.
+  // A pen-and-ink map should not sprout six heraldic colours; a colour-blind-safe
+  // one should not sprout the default wheel, half of which it cannot separate.
   const palette0 = paletteById(o.paletteId);
   if (palette0.mono) {
     seeds.forEach((s, i) => {
       s.color = mix(palette0.ink, palette0.parchment, 0.25 + (i % 4) * 0.16);
     });
+  } else if (palette0.realmColors?.length) {
+    const set = palette0.realmColors;
+    seeds.forEach((s, i) => { s.color = set[i % set.length]; });
   }
   if (seeds.length < 2) return;
 

@@ -20,6 +20,8 @@ import { snapPoint } from '../render/grid';
 import { boundsOf } from './geometry';
 import { objectBounds } from './objectBounds';
 import type { Surface } from '../util/canvas';
+import { t } from '../i18n';
+import { plural } from '../i18n/plural';
 
 export type ToolId =
   | 'select' | 'brush' | 'eraser' | 'fill' | 'stamp' | 'text' | 'shape'
@@ -122,7 +124,7 @@ export class Editor {
     const result = fn(draft);
     const after = touch(result || draft);
     this.doc = after;
-    this.history.push({ kind: 'doc', before, after });
+    this.history.push({ kind: 'doc', before, after }, label);
     this.markDirty();
     this.emitChange();
   }
@@ -139,7 +141,7 @@ export class Editor {
     const before = snapshotRect(layer.surface, r);
     draw();
     const after = snapshotRect(layer.surface, r);
-    this.history.push({ kind: 'raster', layerId: layer.id, rect: r, before, after });
+    this.history.push({ kind: 'raster', layerId: layer.id, rect: r, before, after }, label);
     this.markDirty();
     this.emitChange();
   }
@@ -375,12 +377,18 @@ export class Editor {
   }
 
   copySelection(): void {
-    this.clipboard = JSON.parse(JSON.stringify(this.selectedObjects));
-    this.events.emit('status', `${this.clipboard.length} object(s) copied`);
+    const objs = this.selectedObjects;
+    // Reporting "0 objects copied" is reporting a non-event; the clipboard is
+    // also left alone, so a stray Ctrl+C does not throw away what is on it.
+    if (!objs.length) { this.status(t('app.status.nothingToCopy')); return; }
+    this.clipboard = JSON.parse(JSON.stringify(objs));
+    this.status(t('app.status.copied', { objects: plural('count.objects', this.clipboard.length) }));
   }
 
   pasteClipboard(at?: Vec2): void {
-    if (!this.clipboard.length) return;
+    // Ctrl+V with an empty clipboard used to do nothing at all, which reads as
+    // a broken shortcut rather than an empty clipboard.
+    if (!this.clipboard.length) { this.status(t('app.status.nothingToPaste')); return; }
     const b = boundsOf(this.clipboard.map((o) => ({ x: o.x, y: o.y })));
     const target = at || { x: this.camera.x, y: this.camera.y };
     const dx = target.x - (b.x + b.w / 2);

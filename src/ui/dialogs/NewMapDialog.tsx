@@ -49,10 +49,11 @@ export function NewMapDialog({ onClose, onGenerate, onImport }: { onClose: () =>
     >
       <div className="card-grid" style={{ marginBottom: 18 }}>
         {MAP_KINDS.map((k) => (
-          <div key={k.kind} className={`card ${kind === k.kind ? 'active' : ''}`} onClick={() => setKind(k.kind)}>
+          <button key={k.kind} type="button" className={`card ${kind === k.kind ? 'active' : ''}`}
+            aria-pressed={kind === k.kind} onClick={() => setKind(k.kind)}>
             <h4>{mapKindLabel(k.kind)}</h4>
             <p>{mapKindBlurb(k.kind)}</p>
-          </div>
+          </button>
         ))}
       </div>
 

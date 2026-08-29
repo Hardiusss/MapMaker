@@ -3,6 +3,8 @@ import React from 'react';
 import { useEditorEvents } from './useEditor';
 import { getTool } from '../tools';
 import { useLang } from '../i18n/useLang';
+import { gridSpan } from '../render/grid';
+import { plural } from '../i18n/plural';
 
 export function StatusBar() {
   const editor = useEditorEvents('tool', 'change', 'selection', 'history');
@@ -10,12 +12,8 @@ export function StatusBar() {
   const doc = editor.doc;
   const tool = getTool(editor.tool);
 
-  const cells = doc.grid.type === 'none'
-    ? null
-    : t('status.cells', {
-      cols: Math.round(doc.width / doc.grid.size),
-      rows: Math.round(doc.height / doc.grid.size),
-    });
+  const span = gridSpan(doc.width, doc.height, doc.grid);
+  const cells = doc.grid.type === 'none' ? null : t('status.cells', span);
 
   const walls = doc.layers.reduce((n, l) => n + (l.kind === 'wall' ? l.walls.length : 0), 0);
   const lights = doc.layers.reduce((n, l) => n + (l.kind === 'light' ? l.lights.length : 0), 0);
@@ -35,11 +33,11 @@ export function StatusBar() {
       <span>{t('status.size', { w: doc.width, h: doc.height })}</span>
       {cells && <><span className="sep" /><span>{cells}</span></>}
       <span className="sep" />
-      <span>{t('status.objects', { count: objects })}</span>
+      <span>{t('status.objects', { objects: plural('count.objects', objects) })}</span>
       <span className="sep" />
-      <span>{t('status.wallsLights', { walls, lights })}</span>
+      <span>{t('status.wallsLights', { walls: plural('count.walls', walls), lights: plural('count.lights', lights) })}</span>
       <span className="sep" />
-      <span>{t('status.undoSteps', { count: editor.history.depth })}</span>
+      <span>{t('status.undoSteps', { steps: plural('count.undoSteps', editor.history.depth) })}</span>
     </div>
   );
 }

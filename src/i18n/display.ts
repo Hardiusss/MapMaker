@@ -108,3 +108,76 @@ export function lightPresetLabel(id: string, fallback: string): string {
   const s = t(key);
   return s === key ? fallback : s;
 }
+
+/**
+ * Undo-step names, keyed by the exact string the editor records.
+ *
+ * The label is written where the edit happens — deep in tools and generators
+ * that have no business knowing what language the interface is in — and it is
+ * stored on the history stack, which outlives any one language choice. So it
+ * stays English there and is translated here, the same way layer names are.
+ *
+ * A label with no entry is shown as it is. That is the right failure: a new
+ * command that has not been added here reads as an English word in the undo
+ * tooltip, rather than as a raw key or as nothing at all.
+ */
+const HISTORY_KEYS: Record<string, string> = {
+  'Edit': 'history.edit',
+  'Add Layer': 'history.addLayer',
+  'Delete Layer': 'history.deleteLayer',
+  'Duplicate Layer': 'history.duplicateLayer',
+  'Reorder Layer': 'history.reorderLayer',
+  'Layer Settings': 'history.layerSettings',
+  'Merge Down': 'history.mergeDown',
+  'Clear Layer': 'history.clearLayer',
+  'Rename': 'history.rename',
+  'Add Object': 'history.addObject',
+  'Edit Object': 'history.editObject',
+  'Delete': 'history.delete',
+  'Duplicate': 'history.duplicate',
+  'Paste': 'history.paste',
+  'Reorder': 'history.reorder',
+  'Move': 'history.move',
+  'Nudge': 'history.nudge',
+  'Rotate': 'history.rotate',
+  'Scale': 'history.scale',
+  'Resize': 'history.resize',
+  'Opacity': 'history.opacity',
+  'Blend': 'history.blend',
+  'Reseed': 'history.reseed',
+  'Edit text': 'history.editText',
+  'Edit label': 'history.editLabel',
+  'Describe': 'history.describe',
+  'Add Wall': 'history.addWall',
+  'Add Walls': 'history.addWalls',
+  'Edit Wall': 'history.editWall',
+  'Derive walls': 'history.deriveWalls',
+  'Add Light': 'history.addLight',
+  'Edit Light': 'history.editLight',
+  'Lighting': 'history.lighting',
+  'Add Note': 'history.addNote',
+  'Edit Note': 'history.editNote',
+  'Delete note': 'history.deleteNote',
+  'Paint': 'history.paint',
+  'Erase': 'history.erase',
+  'Fill Layer': 'history.fillLayer',
+  'Flood Fill': 'history.floodFill',
+  'Fill cells': 'history.fillCells',
+  'Background': 'history.background',
+  'Grid settings': 'history.gridSettings',
+  'Hex settings': 'history.hexSettings',
+  'Align grid': 'history.alignGrid',
+  'Nudge grid': 'history.nudgeGrid',
+  'Resize canvas': 'history.resizeCanvas',
+  'Import image': 'history.importImage',
+  'Castle masonry': 'history.castleMasonry',
+  'Castle floor': 'history.castleFloor',
+  'Castle shadow': 'history.castleShadow',
+  'Castle objects': 'history.castleObjects',
+};
+
+/** What an undo step is called on screen. */
+export function historyLabel(stored: string): string {
+  const key = HISTORY_KEYS[stored];
+  return key ? t(key) : stored;
+}

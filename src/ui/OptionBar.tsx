@@ -10,11 +10,22 @@ import { castleSettings } from '../tools/castleTool';
 import { useLang } from '../i18n/useLang';
 import { assetLabel } from '../i18n/assetNames';
 import type { CurtainMaterial, TowerPlacement, TowerShape } from '../gen/castle/curtain';
+import { FAMILY_ORDER, materialsByFamily } from '../render/materials';
 import { assetById } from '../assets/library';
 import { brushPresetLabel, lightPresetLabel } from '../i18n/display';
 import { MAP_FONTS } from '../core/factories';
-import type { WallKind, ShapeKind, PathStyle } from '../core/types';
+import type { GridConfig, WallKind, ShapeKind, PathStyle } from '../core/types';
+import { t } from '../i18n';
+import { plural } from '../i18n/plural';
 
+/*
+ * Widths on this strip are minimums, never fixed sizes. A select measured to
+ * fit "Corners + spacing" clips "Углы и промежутки", and a dropdown that will
+ * not show what it is set to is failing at the one thing a dropdown does. The
+ * bar scrolls sideways, so letting one grow costs nothing.
+ */
+
+/** A caption and the controls it governs. */
 function Group({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
     <div className="opt-group">
@@ -24,21 +35,50 @@ function Group({ label, children }: { label?: string; children: React.ReactNode 
   );
 }
 
-function Num({ value, onChange, min, max, step = 1, width = 62 }: {
-  value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; width?: number;
+function Num({ value, onChange, min, max, step = 1, width = 62, label }: {
+  value: number; onChange: (v: number) => void;
+  min?: number; max?: number; step?: number; width?: number;
+  /** Only needed where the group's caption is already bound to a slider. */
+  label?: string;
 }) {
   return (
-    <input type="number" style={{ width }} value={value} min={min} max={max} step={step}
+    <input type="number" style={{ width }} value={value} min={min} max={max} step={step} aria-label={label}
       onChange={(e) => { const v = parseFloat(e.target.value); if (!Number.isNaN(v)) onChange(v); }} />
   );
 }
 
-function Range({ value, onChange, min, max, step = 0.01, width = 92 }: {
-  value: number; onChange: (v: number) => void; min: number; max: number; step?: number; width?: number;
+/**
+ * A slider that says what it is set to.
+ *
+ * These used to be a bare track under a caption, which told a GM that the
+ * brush had a hardness and then refused to say what it was: the only way to
+ * read a setting back was to eyeball the handle, and the only way to repeat
+ * one tomorrow was to remember where you left it. The readout is most of the
+ * reason the control is on the strip at all rather than in a dialog.
+ *
+ * It owns its own group so the caption can be a real `<label>` bound to the
+ * input — a `<span>` beside a range reads as an unnamed control, and clicking
+ * the word did nothing. `after` is for the sliders that already have a number
+ * box beside them; that box is the readout, so it takes its place.
+ */
+function Range({ label, value, onChange, min, max, step = 0.01, width = 92, format, after }: {
+  label: string; value: number; onChange: (v: number) => void;
+  min: number; max: number; step?: number; width?: number;
+  format?: (v: number) => string; after?: React.ReactNode;
 }) {
+  const id = React.useId();
+  // A range that tops out at 1 is a proportion, and proportions read as
+  // percentages everywhere else in the app.
+  const shown = format ? format(value) : max <= 1
+    ? `${Math.round(value * 100)}%`
+    : String(Math.round(value * 100) / 100);
   return (
-    <input type="range" style={{ width, flex: 'none' }} min={min} max={max} step={step} value={value}
-      onChange={(e) => onChange(parseFloat(e.target.value))} />
+    <div className="opt-group">
+      <label className="opt-label" htmlFor={id}>{label}</label>
+      <input id={id} type="range" style={{ width, flex: 'none' }} min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))} />
+      {after ?? <span className="opt-value">{shown}</span>}
+    </div>
   );
 }
 
@@ -53,7 +93,7 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
     return (
       <div className="optionbar">
         <Group label={t('opt.preset')}>
-          <select style={{ width: 130 }} value=""
+          <select style={{ minWidth: 130 }} value=""
             onChange={(e) => {
               const p = BRUSH_PRESETS.find((x) => x.id === e.target.value);
               if (p) editor.setBrush(p.settings);
@@ -63,7 +103,7 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
           </select>
         </Group>
         <Group label={t('opt.mode')}>
-          <select style={{ width: 104 }} value={b.mode}
+          <select style={{ minWidth: 104 }} value={b.mode}
             onChange={(e) => editor.setBrush({ mode: e.target.value as BrushMode })}>
             <option value="texture">{t('brushmode.texture')}</option>
             <option value="color">{t('brushmode.color')}</option>
@@ -76,26 +116,18 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
             <input type="color" value={b.color} onChange={(e) => editor.setBrush({ color: e.target.value })} />
           )}
         </Group>
-        <Group label={t('opt.size')}>
-          <Range value={b.size} min={2} max={800} step={1} onChange={(v) => editor.setBrush({ size: v })} />
-          <Num value={Math.round(b.size)} min={2} max={3000} onChange={(v) => editor.setBrush({ size: v })} />
-        </Group>
-        <Group label={t('opt.hardness')}>
-          <Range value={b.hardness} min={0} max={1} onChange={(v) => editor.setBrush({ hardness: v })} />
-        </Group>
-        <Group label={t('opt.flow')}>
-          <Range value={b.flow} min={0.02} max={1} onChange={(v) => editor.setBrush({ flow: v })} />
-        </Group>
-        <Group label={t('opt.opacity')}>
-          <Range value={b.opacity} min={0.02} max={1} onChange={(v) => editor.setBrush({ opacity: v })} />
-        </Group>
-        <Group label={t('opt.edge')}>
-          <Range value={b.edgeNoise} min={0} max={0.8} onChange={(v) => editor.setBrush({ edgeNoise: v })} />
-        </Group>
+        <Range label={t('opt.size')} value={b.size} min={2} max={800} step={1}
+          onChange={(v) => editor.setBrush({ size: v })}
+          after={<Num value={Math.round(b.size)} min={2} max={3000} label={t('opt.size')}
+            onChange={(v) => editor.setBrush({ size: v })} />} />
+        <Range label={t('opt.hardness')} value={b.hardness} min={0} max={1} onChange={(v) => editor.setBrush({ hardness: v })} />
+        <Range label={t('opt.flow')} value={b.flow} min={0.02} max={1} onChange={(v) => editor.setBrush({ flow: v })} />
+        <Range label={t('opt.opacity')} value={b.opacity} min={0.02} max={1} onChange={(v) => editor.setBrush({ opacity: v })} />
+        <Range label={t('opt.edge')} value={b.edgeNoise} min={0} max={0.8} onChange={(v) => editor.setBrush({ edgeNoise: v })} />
         {b.mode === 'texture' && (
-          <Group label={t('opt.textureScale')}>
-            <Range value={b.textureScale} min={0.2} max={4} step={0.05} onChange={(v) => editor.setBrush({ textureScale: v })} width={80} />
-          </Group>
+          <Range label={t('opt.textureScale')} value={b.textureScale} min={0.2} max={4} step={0.05}
+            format={(v) => `${v.toFixed(2)}×`}
+            onChange={(v) => editor.setBrush({ textureScale: v })} width={80} />
         )}
         {b.mode === 'scatter' && (
           <>
@@ -104,9 +136,9 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
                 {(() => { const d = assetById(b.scatterAssetId); return d ? assetLabel(d) : t('opt.choose'); })()}
               </button>
             </Group>
-            <Group label={t('opt.density')}>
-              <Range value={b.scatterDensity} min={0.1} max={2} step={0.05} onChange={(v) => editor.setBrush({ scatterDensity: v })} />
-            </Group>
+            <Range label={t('opt.density')} value={b.scatterDensity} min={0.1} max={2} step={0.05}
+              format={(v) => `${v.toFixed(2)}×`}
+              onChange={(v) => editor.setBrush({ scatterDensity: v })} />
           </>
         )}
       </div>
@@ -120,14 +152,12 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
         <Group label={t('opt.asset')}>
           <button className="btn small" onClick={onOpenAssets}>{def ? assetLabel(def) : t('opt.choose')}</button>
         </Group>
-        <Group label={t('opt.width')}>
-          <Range value={stampSettings.width} min={10} max={900} step={1}
-            onChange={(v) => { stampSettings.width = v; force(); }} />
-          <Num value={Math.round(stampSettings.width)} onChange={(v) => { stampSettings.width = v; force(); }} />
-        </Group>
-        <Group label={t('opt.sizeJitter')}>
-          <Range value={stampSettings.sizeJitter} min={0} max={0.7} onChange={(v) => { stampSettings.sizeJitter = v; force(); }} />
-        </Group>
+        <Range label={t('opt.width')} value={stampSettings.width} min={10} max={900} step={1}
+          onChange={(v) => { stampSettings.width = v; force(); }}
+          after={<Num value={Math.round(stampSettings.width)} label={t('opt.width')}
+            onChange={(v) => { stampSettings.width = v; force(); }} />} />
+        <Range label={t('opt.sizeJitter')} value={stampSettings.sizeJitter} min={0} max={0.7}
+          onChange={(v) => { stampSettings.sizeJitter = v; force(); }} />
         <Group label={t('opt.rotateJitter')}>
           <Num value={stampSettings.rotationJitter} min={0} max={180} onChange={(v) => { stampSettings.rotationJitter = v; force(); }} />
         </Group>
@@ -156,7 +186,7 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
     return (
       <div className="optionbar">
         <Group label={t('opt.font')}>
-          <select style={{ width: 170 }} value={textSettings.font}
+          <select style={{ minWidth: 170 }} value={textSettings.font}
             onChange={(e) => { textSettings.font = e.target.value; force(); }}>
             {MAP_FONTS.map((f) => <option key={f} value={f}>{f.split(',')[0].replace(/"/g, '')}</option>)}
           </select>
@@ -241,16 +271,13 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
             <option value="custom">{t('path.custom')}</option>
           </select>
         </Group>
-        <Group label={t('opt.width')}>
-          <Range value={pathSettings.width} min={1} max={90} step={0.5} onChange={(v) => { pathSettings.width = v; force(); }} />
-          <Num value={pathSettings.width} onChange={(v) => { pathSettings.width = v; force(); }} width={54} />
-        </Group>
-        <Group label={t('opt.taper')}>
-          <Range value={pathSettings.taper} min={0} max={1} onChange={(v) => { pathSettings.taper = v; force(); }} />
-        </Group>
-        <Group label={t('opt.wobble')}>
-          <Range value={pathSettings.jitter} min={0} max={12} step={0.1} onChange={(v) => { pathSettings.jitter = v; force(); }} />
-        </Group>
+        <Range label={t('opt.width')} value={pathSettings.width} min={1} max={90} step={0.5}
+          onChange={(v) => { pathSettings.width = v; force(); }}
+          after={<Num value={pathSettings.width} width={54} label={t('opt.width')}
+            onChange={(v) => { pathSettings.width = v; force(); }} />} />
+        <Range label={t('opt.taper')} value={pathSettings.taper} min={0} max={1} onChange={(v) => { pathSettings.taper = v; force(); }} />
+        <Range label={t('opt.wobble')} value={pathSettings.jitter} min={0} max={12} step={0.1}
+          onChange={(v) => { pathSettings.jitter = v; force(); }} />
         <Group label={t('opt.colour')}>
           <input type="color" value={pathSettings.color} onChange={(e) => { pathSettings.color = e.target.value; force(); }} />
           <input type="color" value={pathSettings.outlineColor} onChange={(e) => { pathSettings.outlineColor = e.target.value; force(); }} />
@@ -281,14 +308,21 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
           <span className="hint">{t('opt.castle.feet')}</span>
         </Group>
         <Group label={t('opt.castle.material')}>
-          <select value={s.material} onChange={(e) => { s.material = e.target.value as CurtainMaterial; force(); }}>
-            <option value="stone">{t('opt.castle.material.stone')}</option>
-            <option value="timber">{t('opt.castle.material.timber')}</option>
-            <option value="earth">{t('opt.castle.material.earth')}</option>
+          {/* Grouped by family: twenty-odd materials as one flat list is a list
+              nobody reads to the bottom of. */}
+          <select style={{ minWidth: 160 }} value={s.material}
+            onChange={(e) => { s.material = e.target.value as CurtainMaterial; force(); }}>
+            {FAMILY_ORDER.map((fam) => (
+              <optgroup key={fam} label={t(`opt.castle.materialGroup.${fam}`)}>
+                {materialsByFamily()[fam].map((m) => (
+                  <option key={m.id} value={m.id}>{t(`material.${m.id}`)}</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </Group>
         <Group label={t('opt.castle.towers')}>
-          <select style={{ width: 150 }} value={s.towers}
+          <select style={{ minWidth: 150 }} value={s.towers}
             onChange={(e) => { s.towers = e.target.value as TowerPlacement; force(); }}>
             <option value="corners">{t('opt.castle.towers.corners')}</option>
             <option value="corners+spacing">{t('opt.castle.towers.spacing')}</option>
@@ -306,9 +340,8 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
             <span className="hint">{t('opt.castle.feet')}</span>
           </Group>
         )}
-        <Group label={t('opt.castle.ruined')}>
-          <Range value={s.ruined} min={0} max={1} onChange={(v) => { s.ruined = v; force(); }} />
-        </Group>
+        <Range label={t('opt.castle.ruined')} value={s.ruined} min={0} max={1}
+          onChange={(v) => { s.ruined = v; force(); }} />
         <Group>
           <label className="field-row" style={{ margin: 0, gap: 5 }}>
             <input type="checkbox" checked={s.crenellations}
@@ -373,7 +406,7 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
     return (
       <div className="optionbar">
         <Group label={t('opt.preset')}>
-          <select style={{ width: 190 }} value={lightSettings.preset}
+          <select style={{ minWidth: 190 }} value={lightSettings.preset}
             onChange={(e) => {
               const p = LIGHT_PRESETS.find((x) => x.id === e.target.value);
               if (p) {
@@ -473,7 +506,7 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
     return (
       <div className="optionbar">
         <Group label={t('opt.mode')}>
-          <select style={{ width: 150 }} value={fillSettings.mode}
+          <select style={{ minWidth: 150 }} value={fillSettings.mode}
             onChange={(e) => { fillSettings.mode = e.target.value as typeof fillSettings.mode; force(); }}>
             <option value="flood">{t('opt.fillMode.flood')}</option>
             <option value="cell">{t('opt.fillMode.cell')}</option>
@@ -481,7 +514,7 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
           </select>
         </Group>
         <Group label={t('opt.paintWith')}>
-          <select style={{ width: 104 }} value={editor.brush.mode}
+          <select style={{ minWidth: 104 }} value={editor.brush.mode}
             onChange={(e) => editor.setBrush({ mode: e.target.value as BrushMode })}>
             <option value="texture">{t('brushmode.texture')}</option>
             <option value="color">{t('brushmode.color')}</option>
@@ -491,9 +524,8 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
             <input type="color" value={editor.brush.color} onChange={(e) => editor.setBrush({ color: e.target.value })} />
           )}
         </Group>
-        <Group label={t('opt.opacity')}>
-          <Range value={editor.brush.opacity} min={0.05} max={1} onChange={(v) => editor.setBrush({ opacity: v })} />
-        </Group>
+        <Range label={t('opt.opacity')} value={editor.brush.opacity} min={0.05} max={1}
+          onChange={(v) => editor.setBrush({ opacity: v })} />
         <Group>
           <span className="hint">
             {fillSettings.mode === 'cell'
@@ -557,12 +589,7 @@ export function OptionBar({ onOpenAssets }: { onOpenAssets: () => void }) {
     return (
       <div className="optionbar">
         <Group>
-          <span className="hint">
-            {t('opt.measureHint', {
-              units: editor.doc.grid.unitsPerCell,
-              unit: editor.doc.grid.unitLabel,
-            })}
-          </span>
+          <span className="hint">{measureHint(editor.doc.grid)}</span>
         </Group>
       </div>
     );
@@ -583,4 +610,22 @@ function require_hint(tool: string, t: (k: string) => string): string {
     case 'pan': return t('opt.panHint');
     default: return '';
   }
+}
+
+/**
+ * What the measure tool promises before you drag.
+ *
+ * On a hex crawl the useful fact is not the cell size but the day's march, so
+ * the hint says both — a GM should be able to answer "how far is that?" from
+ * the option bar without measuring anything.
+ */
+function measureHint(g: GridConfig): string {
+  const hex = g.type === 'hexPointy' || g.type === 'hexFlat';
+  const pace = g.travelPerDay ?? 0;
+  if (!hex) return t('opt.measureHint', { units: g.unitsPerCell, unit: g.unitLabel });
+  if (pace <= 0) return t('opt.measureHintHexNoPace', { units: g.unitsPerCell, unit: g.unitLabel });
+  return t('opt.measureHintHex', {
+    units: g.unitsPerCell, unit: g.unitLabel,
+    pace: plural('count.hexes', +(pace / Math.max(0.001, g.unitsPerCell)).toFixed(1)),
+  });
 }

@@ -82,9 +82,18 @@ export class History {
     this.pendingLabel = label;
   }
 
-  push(patch: Patch): void {
+  /**
+   * Record one patch as its own undo step, unless a `begin()` is open.
+   *
+   * The label used to be hardcoded to "Edit" here, which meant every caller's
+   * label was thrown away the moment it was not inside a batch — so the undo
+   * button offered to undo "Edit" whether you had renamed the map, deleted a
+   * layer or pasted a town. A history that will not say what is in it is worse
+   * than one with no labels at all, because the tooltip claims otherwise.
+   */
+  push(patch: Patch, label = 'Edit'): void {
     if (this.pending) { this.pending.push(patch); return; }
-    this.commitEntry({ label: 'Edit', patches: [patch], at: Date.now() });
+    this.commitEntry({ label, patches: [patch], at: Date.now() });
   }
 
   commit(label?: string): void {

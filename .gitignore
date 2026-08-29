@@ -8,4 +8,5 @@ gallery/
 # verify-exports.mjs on every run, so tracking it makes every diff noise.
 smoke-output/
 export-output/
+shot-output/
 tools/.assets.json

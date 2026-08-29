@@ -262,6 +262,11 @@ node tools/bench.mjs            # per-phase generator timings
 node tools/check-names.mjs      # bulk-screens generated names
 node tools/check-i18n.mjs       # translation key parity and placeholder drift
 node tools/check-asset-ru.mjs   # Russian coverage for every stamp and shelf
+node tools/check-hex.mjs        # hex numbering, travel time and neighbour maths
+node tools/check-determinism.mjs # same seed, same map — compared on the pixels
+node tools/check-contrast.mjs   # palette separation, including colour-blind vision
+node tools/bench-memory.mjs     # caches and heap across repeats of one workload
+node tools/shot.mjs <script.js> # renders whatever you are working on to a PNG
 ```
 
 `verify-exports.mjs` is the one that matters: it generates a map of each kind,
@@ -278,6 +283,13 @@ at; laying all 623 out at map scale makes a bad silhouette obvious in a glance.
 comes out of them. Gluing random syllables together will eventually produce
 something unfortunate, and a map that hands the table an obscenity in 48-point
 display type is not one anyone wants to show their players.
+
+`shot.mjs` is the one to reach for while you are changing something that draws.
+It evaluates a short script inside the built app — `window.Aetheria` is in
+scope — and writes whatever canvases it returns as PNGs, so a texture at four
+palettes or a stamp at six seeds is one command and one look. Nothing else in
+this list will tell you that a material reads as stone when it is meant to be
+wood; the header of the file has a worked example.
 
 ---
 

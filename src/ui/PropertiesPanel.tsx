@@ -9,6 +9,7 @@ import { TEXTURES } from '../render/textures';
 import { assetById, ASSET_GROUPS } from '../assets/library';
 import { useLang } from '../i18n/useLang';
 import { t } from '../i18n';
+import { plural } from '../i18n/plural';
 import { textureLabel } from '../i18n/display';
 
 export function PropertiesPanel() {
@@ -31,7 +32,7 @@ export function PropertiesPanel() {
 
   return (
     <>
-      <Section title={objects.length > 1 ? t('props.nObjects', { count: objects.length }) : first.name || first.kind}>
+      <Section title={objects.length > 1 ? t('props.nObjects', { objects: plural('count.objects', objects.length) }) : first.name || first.kind}>
         <div className="grid-2">
           <NumberField label="X" value={Math.round(first.x)} onChange={(v) => patch((o) => ({ x: v }), 'Move')} />
           <NumberField label="Y" value={Math.round(first.y)} onChange={(v) => patch((o) => ({ y: v }), 'Move')} />
@@ -218,7 +219,7 @@ function PathProps({ object, patch }: { object: PathObject; patch: Patch }) {
       <Slider label={t('props.outlineWidth')} value={object.outlineWidth} min={0} max={30} step={0.5}
         onChange={(v) => patch(() => ({ outlineWidth: v }))} />
       <Toggle label={t('props.closed')} value={object.closed} onChange={(v) => patch(() => ({ closed: v }))} />
-      <p className="hint">{t('props.nodes', { count: object.nodes.length })}</p>
+      <p className="hint">{t('props.nodes', { nodes: plural('count.nodes', object.nodes.length) })}</p>
     </Section>
   );
 }

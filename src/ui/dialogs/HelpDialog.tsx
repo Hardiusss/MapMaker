@@ -31,6 +31,7 @@ const SHORTCUTS: [string, string][] = [
   ['Alt + wheel', 'sc.brushSizeWheel'],
   ['Wheel', 'sc.zoom'],
   ['Ctrl + 0', 'sc.fit'],
+  ['Ctrl + 1', 'sc.actualSize'],
   ['Ctrl + =/-', 'sc.zoomInOut'],
   ['Ctrl + Z', 'sc.undo'],
   ['Ctrl + Shift + Z', 'sc.redo'],

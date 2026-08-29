@@ -158,6 +158,15 @@ export interface MapPalette {
    * know about it.
    */
   mono?: boolean;
+  /**
+   * This palette has been measured against simulated protanopia and
+   * deuteranopia and every load-bearing pair clears the threshold.
+   *
+   * Declared here rather than inferred, so `tools/check-contrast.mjs` knows
+   * which palette is making the promise and can fail the build when it stops
+   * being true. The others are artistic choices and are only reported on.
+   */
+  cvdSafe?: boolean;
   parchment: string;
   parchmentDark: string;
   ink: string;
@@ -178,6 +187,15 @@ export interface MapPalette {
   accent: string;
   routes: string;
   border: string;
+  /**
+   * Heraldic colours for political realms, when the shared set will not do.
+   *
+   * Region maps normally reach for `REALM_COLORS`, which spreads a dozen
+   * saturated hues around the wheel — the one construction that a red-green
+   * deficiency flattens hardest, since half of those hues land on top of the
+   * other half. A palette that has to survive that supplies its own.
+   */
+  realmColors?: string[];
 }
 
 export const PALETTES: MapPalette[] = [
@@ -228,6 +246,43 @@ export const PALETTES: MapPalette[] = [
     lowland: '#585048', grass: '#4d5a42', forest: '#39472f', highland: '#63594d',
     rock: '#6d6459', snow: '#c9c4bb', desert: '#8d7c5f', swamp: '#3f4a37',
     lava: '#e2662d', accent: '#c9a227', routes: '#7a6a4f', border: '#8c6f3a',
+  },
+  /**
+   * Azure and amber, and almost nothing else.
+   *
+   * Roughly one man in twelve cannot separate red from green, and a GM turns
+   * the screen round so five people can look at once — so one palette here has
+   * to be legible to all five. The red-green axis is the one that collapses;
+   * blue-yellow and lightness are the two that survive, so every distinction
+   * this palette has to carry is built out of those two and nothing else.
+   *
+   * That is why the highlands are amber where every other palette makes them
+   * grey-brown, why the forest is a dark blue-green rather than a leaf green,
+   * and why the roads are amber against indigo borders instead of the usual
+   * brown against red. Terrain that merely has to look like ground — rock,
+   * swamp, grass — is separated by lightness instead, which no deficiency
+   * touches.
+   *
+   * The numbers are in `tools/check-contrast.mjs`; it fails if this stops
+   * being true.
+   */
+  {
+    id: 'beacon', name: 'Beacon', blurb: 'Azure and amber — legible with red-green colour blindness.',
+    cvdSafe: true,
+    parchment: '#f2ebdb', parchmentDark: '#cfc4ad', ink: '#22262c', inkSoft: '#586472',
+    deepWater: '#1b4368', water: '#3e7fa6', shallowWater: '#8fc0d4', shore: '#eee0bc',
+    lowland: '#dcd5ad', grass: '#b9b672', forest: '#33574e', highland: '#ab8d5c',
+    rock: '#807d75', snow: '#f8f7f3', desert: '#e2c67f', swamp: '#75702f',
+    lava: '#d4552a', accent: '#8e3f6d', routes: '#a3641f', border: '#3a4b8c',
+    // Two lightness ramps rather than a circle of hues: three azures and three
+    // ambers separate under both deficiencies, where six hues do not. Past the
+    // eighth the set does start to close up — there is only so much room on one
+    // axis — so they are ordered best-first and a map wanting a dozen realms
+    // should lean on the labels.
+    realmColors: [
+      '#12335a', '#5090c2', '#b0d2e6', '#57400f', '#c68e1e', '#e6d49b',
+      '#ab8e7c', '#44676a', '#4a3f9c', '#b9bd57', '#83773a', '#80a7b7',
+    ],
   },
 ];
 

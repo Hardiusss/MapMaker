@@ -70,12 +70,24 @@ export function ExportDialog({ initial, onClose }: { initial?: ExportFormat; onC
     }
   };
 
-  const setPreset = (preset: 'roll20' | 'foundry' | 'print' | 'web') => {
-    if (preset === 'roll20') setImg({ ...img, scale: 70 / Math.max(1, doc.grid.size), includeGrid: false, format: 'png' });
-    if (preset === 'foundry') setImg({ ...img, scale: 1, includeGrid: false, format: 'png' });
-    if (preset === 'print') setImg({ ...img, scale: Math.min(4, 300 / 96), includeGrid: true, format: 'png' });
-    if (preset === 'web') setImg({ ...img, scale: Math.min(1, 2000 / doc.width), includeGrid: true, format: 'jpg', quality: 0.86 });
+  type Preset = 'roll20' | 'foundry' | 'print' | 'web';
+  const PRESETS: { id: Preset; patch: Partial<ImageExportOptions> }[] = [
+    { id: 'web', patch: { scale: Math.min(1, 2000 / doc.width), includeGrid: true, format: 'jpg', quality: 0.86 } },
+    { id: 'print', patch: { scale: Math.min(4, 300 / 96), includeGrid: true, format: 'png' } },
+    { id: 'foundry', patch: { scale: 1, includeGrid: false, format: 'png' } },
+    { id: 'roll20', patch: { scale: 70 / Math.max(1, doc.grid.size), includeGrid: false, format: 'png' } },
+  ];
+  const setPreset = (preset: Preset) => {
+    const p = PRESETS.find((x) => x.id === preset);
+    if (p) setImg({ ...img, ...p.patch });
   };
+  // Which preset the settings currently *are*, so the row shows the answer
+  // rather than only offering to change it. Nudging the resolution slider by a
+  // percent drops the highlight, which is correct: it is no longer that preset.
+  const activePreset = PRESETS.find((p) => Object.entries(p.patch)
+    .every(([k, v]) => (typeof v === 'number'
+      ? Math.abs((img as unknown as Record<string, number>)[k] - v) < 1e-6
+      : (img as unknown as Record<string, unknown>)[k] === v)))?.id;
 
   return (
     <Modal
@@ -98,10 +110,11 @@ export function ExportDialog({ initial, onClose }: { initial?: ExportFormat; onC
     >
       <div className="card-grid" style={{ marginBottom: 18 }}>
         {FORMATS.map((id) => (
-          <div key={id} className={`card ${format === id ? 'active' : ''}`} onClick={() => setFormat(id)}>
+          <button key={id} type="button" className={`card ${format === id ? 'active' : ''}`}
+            aria-pressed={format === id} onClick={() => setFormat(id)}>
             <h4>{t(`export.fmt.${id}`)}</h4>
             <p>{t(`export.fmt.${id}.blurb`)}</p>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -109,10 +122,12 @@ export function ExportDialog({ initial, onClose }: { initial?: ExportFormat; onC
         <div>
           <Section title={t('export.section.image')}>
             <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
-              <button className="btn small" onClick={() => setPreset('web')}>{t('export.preset.web')}</button>
-              <button className="btn small" onClick={() => setPreset('print')}>{t('export.preset.print')}</button>
-              <button className="btn small" onClick={() => setPreset('foundry')}>{t('export.preset.foundry')}</button>
-              <button className="btn small" onClick={() => setPreset('roll20')}>{t('export.preset.roll20')}</button>
+              {PRESETS.map((p) => (
+                <button key={p.id} className={`btn small ${activePreset === p.id ? 'active' : ''}`}
+                  aria-pressed={activePreset === p.id} onClick={() => setPreset(p.id)}>
+                  {t(`export.preset.${p.id}`)}
+                </button>
+              ))}
             </div>
             <Slider label={t('export.resolution')} value={img.scale} min={0.1} max={4} step={0.05}
               onChange={(v) => setImg({ ...img, scale: v })} format={(v) => `${Math.round(v * 100)}%`} />

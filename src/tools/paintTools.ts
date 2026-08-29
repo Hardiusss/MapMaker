@@ -271,7 +271,7 @@ function paintOneCell(c: PointerCtx): void {
   const before = snapshotRect(layer.surface, rect);
   paintPolygon(editor, layer.surface, geom.poly, geom.bounds);
   const after = snapshotRect(layer.surface, rect);
-  editor.history.push({ kind: 'raster', layerId: layer.id, rect, before, after });
+  editor.history.push({ kind: 'raster', layerId: layer.id, rect, before, after }, 'Fill cells');
   editor.markDirty();
   editor.emitChange();
 }

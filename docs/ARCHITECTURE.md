@@ -92,6 +92,21 @@ is the seam between cells, which reads as machine-cut paving. The id is what
 lets each stone in the scree, each enclosure in the farmland and each lichen
 crust in the tundra carry its own tone.
 
+**Materials** (`src/render/materials.ts`) are the building-material catalogue:
+twenty-three entries, each giving a palette-derived base colour, a coursing
+bond, a grain and a wear character. The texture library synthesises one tile
+per entry from those numbers rather than each being written out by hand, and
+the castle generator and the construction tool both read the same table — so
+there is one description of what limestone is, not three. The catalogue also
+answers for the three values (`stone`, `timber`, `earth`) the castle tool used
+before it existed, because saved tool settings still carry them.
+
+The castle grid keeps only three structural classes — masonry, timber, earth —
+because that is all the *plan* needs to know: a wall you can crenellate, a
+stockade, or a bank of spoil. Which concrete material each class resolves to is
+chosen per castle from the style and the seed, and the caller can pin any of
+the three.
+
 **Assets** (`src/assets/`) are drawing functions, not images. Each one takes a
 box and a seeded RNG and draws itself. Two mountains from the same asset never
 look the same because the seed differs; the same seed always redraws
@@ -419,6 +434,20 @@ every export payload, and asserts the properties a VTT will actually check.
 `tools/smoke.mjs` drives the UI and writes screenshots, and `tools/bench.mjs`
 reports per-phase generator timings — which is how the region generator's five
 second texture pass was found in the first place.
+
+The same argument applies to anything that draws, one change at a time:
+`tools/shot.mjs` evaluates a short script inside the built app and writes the
+canvases it returns as PNGs. Whether a material reads as silvered oak or as
+grey rubble is not a property any assertion can hold, so the loop is render,
+look, adjust, and the harness exists to make that one command.
+
+Determinism is part of the contract — the same seed has to produce the same
+map — and it is checked by rendering two fresh generations at one seed and
+comparing the images, not by comparing the documents. Documents matched while
+the pictures did not for a long time: `pathPolyline` seeded a road's wobble
+from the object's id, which is minted at random, so every road on every map
+wandered differently each time it was built. The seed now comes from the path's
+own geometry.
 
 `window.Aetheria.debug` exposes the numbers that catch the failures a rendered
 map hides. `biomeStats` and `biomeSpread` report biome balance across seeds;

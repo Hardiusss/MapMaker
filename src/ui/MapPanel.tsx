@@ -5,7 +5,9 @@ import { Section, Slider, NumberField, TextField, TextArea, SelectField, Toggle,
 import { PALETTES } from '../core/color';
 import { TEXTURES } from '../render/textures';
 import { resizeDocument } from '../core/doc';
-import type { GridType } from '../core/types';
+import type { GridType, HexLabelStyle, MapNote } from '../core/types';
+import { gridSpan, hexDesignationAt } from '../render/grid';
+import { plural } from '../i18n/plural';
 import { clearAssetCache, clearPreviewCache } from '../assets/library';
 import { clearTextureCache } from '../render/textures';
 import { useLang } from '../i18n/useLang';
@@ -30,6 +32,9 @@ export function MapPanel() {
   const lightCount = doc.layers.reduce((n, l) => n + (l.kind === 'light' ? l.lights.length : 0), 0);
   const noteCount = doc.layers.reduce((n, l) => n + (l.kind === 'note' ? l.notes.length : 0), 0);
   const objectCount = doc.layers.reduce((n, l) => n + (l.kind === 'object' ? l.objects.length : 0), 0);
+
+  const isHex = doc.grid.type === 'hexPointy' || doc.grid.type === 'hexFlat';
+  const span = gridSpan(doc.width, doc.height, doc.grid);
 
   return (
     <>
@@ -57,11 +62,8 @@ export function MapPanel() {
           </button>
         </div>
         <p className="hint" style={{ marginTop: 6 }}>
-          {t('map.cellsSummary', {
-            cols: Math.round(doc.width / Math.max(1, doc.grid.size)),
-            rows: Math.round(doc.height / Math.max(1, doc.grid.size)),
-          })}
-          {doc.grid.type !== 'none' && ` · ${(doc.width / Math.max(1, doc.grid.size) * doc.grid.unitsPerCell).toFixed(0)} × ${(doc.height / Math.max(1, doc.grid.size) * doc.grid.unitsPerCell).toFixed(0)} ${doc.grid.unitLabel}`}
+          {t('map.cellsSummary', span)}
+          {doc.grid.type !== 'none' && ` · ${(span.cols * doc.grid.unitsPerCell).toFixed(0)} × ${(span.rows * doc.grid.unitsPerCell).toFixed(0)} ${doc.grid.unitLabel}`}
         </p>
       </Section>
 
@@ -120,6 +122,8 @@ export function MapPanel() {
         )}
       </Section>
 
+      {isHex && <HexCrawlSection />}
+
       <Section title={t('map.lighting')}>
         <Toggle label={t('map.globalLight')} value={doc.lighting.globalLight}
           onChange={(v) => editor.mutate('Lighting', (d) => { d.lighting.globalLight = v; })} />
@@ -151,5 +155,93 @@ export function MapPanel() {
         </p>
       </Section>
     </>
+  );
+}
+
+/**
+ * Everything a hex crawl needs that a square-grid map does not: how the hexes
+ * are numbered, how fast a party moves, and which hexes have something written
+ * about them.
+ *
+ * Only shown on a hex grid, because on any other kind every control in it is a
+ * question with no answer.
+ */
+function HexCrawlSection() {
+  const editor = useEditorEvents('change', 'selection');
+  const { t } = useLang();
+  const doc = editor.doc;
+  const g = doc.grid;
+  const style: HexLabelStyle = g.hexLabels ?? 'none';
+
+  const setGrid = (patch: Partial<typeof doc.grid>) => {
+    editor.mutate('Hex settings', (d) => { d.grid = { ...d.grid, ...patch }; });
+  };
+
+  const { cols, rows } = gridSpan(doc.width, doc.height, g);
+  const pace = g.travelPerDay ?? 0;
+  const perDayHexes = pace > 0 && g.unitsPerCell > 0 ? pace / g.unitsPerCell : 0;
+  const spanDays = pace > 0 ? (cols * g.unitsPerCell) / pace : 0;
+
+  // Every GM note on the map, with the hex it sits in. The layer order is the
+  // order the notes were made, which is a worse index than the designation.
+  const noted = React.useMemo(() => {
+    const out: { note: MapNote; hex: string }[] = [];
+    for (const l of doc.layers) {
+      if (l.kind !== 'note') continue;
+      for (const n of l.notes) out.push({ note: n, hex: hexDesignationAt(n, g) });
+    }
+    out.sort((a, b) => a.hex.localeCompare(b.hex) || a.note.title.localeCompare(b.note.title));
+    return out;
+  }, [doc, g]);
+
+  return (
+    <Section title={t('map.hexCrawl')}>
+      <SelectField label={t('map.hexLabels')} value={style}
+        options={[
+          { value: 'none', label: t('map.hexLabels.none') },
+          { value: 'colRow', label: t('map.hexLabels.colRow') },
+          { value: 'axial', label: t('map.hexLabels.axial') },
+        ] as { value: HexLabelStyle; label: string }[]}
+        onChange={(v) => setGrid({ hexLabels: v })} />
+      <p className="hint">{t('map.hexLabelsHint')}</p>
+
+      <NumberField label={t('map.travelPerDay')} value={pace} min={0} step={1}
+        suffix={t('map.travelPerDaySuffix', { unit: g.unitLabel })}
+        onChange={(v) => setGrid({ travelPerDay: Math.max(0, v) })} />
+      <p className="hint">
+        {pace > 0
+          ? `${t('map.hexScale', {
+            units: +g.unitsPerCell.toFixed(2), unit: g.unitLabel,
+            hexes: plural('count.hexes', +perDayHexes.toFixed(1)),
+          })} ${t('map.hexSpan', {
+            cols, rows, days: plural('count.days', +spanDays.toFixed(spanDays < 10 ? 1 : 0)),
+          })}`
+          : t('map.hexNoPace')}
+      </p>
+
+      <div className="section-title" style={{ marginTop: 10 }}><span>{t('map.hexKey')}</span></div>
+      {noted.length === 0
+        ? <p className="hint">{t('map.hexKeyEmpty', { tool: t('tool.note') })}</p>
+        : (
+          <>
+            <table className="shortcut-table">
+              <tbody>
+                {noted.map(({ note, hex }) => (
+                  <tr key={note.id} className="hex-key-row"
+                    onClick={() => {
+                      editor.setSelection({ noteIds: [note.id] });
+                      editor.camera.centerOn(note);
+                      editor.emitChange();
+                    }}>
+                    <td><code>{hex || t('map.hexNotOnHex')}</code></td>
+                    <td>{note.title}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="hint" style={{ marginTop: 6 }}>{t('map.hexKeyHint')}</p>
+          </>
+        )}
+    </Section>
   );
 }

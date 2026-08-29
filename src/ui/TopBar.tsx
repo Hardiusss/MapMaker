@@ -2,6 +2,7 @@
 import React from 'react';
 import { useEditorEvents } from './useEditor';
 import { useLang } from '../i18n/useLang';
+import { historyLabel } from '../i18n/display';
 import { LANGS, setLang } from '../i18n';
 import {
   IconNew, IconOpen, IconSave, IconExport, IconUndo, IconRedo,
@@ -41,9 +42,12 @@ export function TopBar(p: TopBarProps) {
 
       <div style={{ width: 1, height: 20, background: 'var(--line)', margin: '0 4px' }} />
 
-      <button className="btn ghost icon" title={`${t('action.undo')}${editor.history.undoLabel ? `: ${editor.history.undoLabel}` : ''}  (Ctrl+Z)`}
+      {/* The step's own name, not the raw English the history stack stores. */}
+      <button className="btn ghost icon" title={`${t('action.undo')}${editor.history.undoLabel ? `: ${historyLabel(editor.history.undoLabel)}` : ''}  (Ctrl+Z)`}
+        aria-label={t('action.undo')}
         disabled={!editor.history.canUndo} onClick={() => editor.undo()}><IconUndo size={16} /></button>
-      <button className="btn ghost icon" title={`${t('action.redo')}${editor.history.redoLabel ? `: ${editor.history.redoLabel}` : ''}  (Ctrl+Shift+Z)`}
+      <button className="btn ghost icon" title={`${t('action.redo')}${editor.history.redoLabel ? `: ${historyLabel(editor.history.redoLabel)}` : ''}  (Ctrl+Shift+Z)`}
+        aria-label={t('action.redo')}
         disabled={!editor.history.canRedo} onClick={() => editor.redo()}><IconRedo size={16} /></button>
 
       <div style={{ width: 1, height: 20, background: 'var(--line)', margin: '0 4px' }} />
@@ -70,18 +74,25 @@ export function TopBar(p: TopBarProps) {
       <button className={`btn ghost icon ${editor.view.showGrid ? 'active' : ''}`} title={`${t('action.toggleGrid')}  (Ctrl+G)`}
         onClick={() => editor.setView({ showGrid: !editor.view.showGrid })}><IconGrid size={16} /></button>
       <button className="btn ghost icon" title={`${t('action.zoomOut')}  (Ctrl+-)`} onClick={() => zoom(1 / 1.25)}><IconZoomOut size={16} /></button>
-      <button className="btn ghost small" title={`${t('action.zoomFit')}  (Ctrl+0)`} style={{ minWidth: 46 }}
-        onClick={() => { editor.camera.fit(editor.doc.width, editor.doc.height); editor.events.emit('camera', undefined); }}>
+      {/*
+        * The readout is also the "back to 100%" control, the way every editor
+        * does it. It used to fit the map to the window — which is what the
+        * button two along already does, so the bar had two controls with one
+        * behaviour and two different names on their tooltips.
+        */}
+      <button className="btn ghost small" title={`${t('action.actualSize')}  (Ctrl+1)`} style={{ minWidth: 46 }}
+        onClick={() => { editor.camera.setZoom(1); editor.events.emit('camera', undefined); }}>
         {Math.round(editor.camera.zoom * 100)}%
       </button>
       <button className="btn ghost icon" title={`${t('action.zoomIn')}  (Ctrl+=)`} onClick={() => zoom(1.25)}><IconZoomIn size={16} /></button>
-      <button className="btn ghost icon" title={t('action.fitMap')} onClick={() => { editor.camera.fit(editor.doc.width, editor.doc.height); editor.events.emit('camera', undefined); }}>
+      <button className="btn ghost icon" title={`${t('action.zoomFit')}  (Ctrl+0)`} onClick={() => { editor.camera.fit(editor.doc.width, editor.doc.height); editor.events.emit('camera', undefined); }}>
         <IconFit size={16} />
       </button>
 
       <div className="lang-switch" title={t('action.language')}>
         {LANGS.map((l) => (
           <button key={l.id} className={`btn ghost small ${lang === l.id ? 'active' : ''}`}
+            aria-pressed={lang === l.id} title={l.label}
             onClick={() => setLang(l.id)}>{l.short}</button>
         ))}
       </div>

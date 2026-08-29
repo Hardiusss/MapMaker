@@ -10,6 +10,7 @@ import { isRaster } from '../core/types';
 import { zipStore, unzipStore, utf8, fromUtf8, base64ToBytes, bytesToBase64, type ZipEntry } from '../util/zip';
 import { createSurface, ctxOf, surfaceFromDataURL, alphaBounds, isFullyOpaque } from '../util/canvas';
 import { renderThumbnail } from '../render/renderer';
+import { t } from '../i18n';
 
 export const PROJECT_VERSION = 1;
 export const PROJECT_EXT = 'aethermap';
@@ -83,9 +84,9 @@ export async function saveProject(doc: MapDocument, paletteId: string): Promise<
 export async function loadProject(bytes: Uint8Array): Promise<{ doc: MapDocument; paletteId: string }> {
   const files = unzipStore(bytes);
   const raw = files.get('project.json');
-  if (!raw) throw new Error('project.json missing — is this an Aetheria map?');
+  if (!raw) throw new Error(t('project.notAetheria'));
   const project = JSON.parse(fromUtf8(raw)) as ProjectFile;
-  if (project.format !== 'aetheria-cartographer') throw new Error('Unrecognised project format');
+  if (project.format !== 'aetheria-cartographer') throw new Error(t('project.badFormat'));
 
   const layers: Layer[] = [];
   for (const l of project.document.layers) {

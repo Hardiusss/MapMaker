@@ -189,12 +189,30 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------------------------------------------------------------- option bar */
 
+/* The strip scrolls sideways when a tool has more settings than the window is
+   wide, and it hides its scrollbar so it does not eat a 44px row. That leaves
+   nothing saying there is more, and a setting nobody knows about is a setting
+   that does not exist — so the ends fade while there is content past them.
+
+   Four background layers do it with no JavaScript: two painted in the
+   element's own colour that scroll *with* the content, and two shadows fixed
+   to the element. At the left end the local layer sits over the left shadow
+   and hides it; scroll away from the end and it moves off, uncovering the
+   fade. `background-attachment: local` is the whole trick. */
 .optionbar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  background: var(--bg-2);
+  background:
+    linear-gradient(to right, var(--bg-2) 60%, rgba(29, 26, 23, 0)) left center,
+    linear-gradient(to left, var(--bg-2) 60%, rgba(29, 26, 23, 0)) right center,
+    linear-gradient(to right, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0)) left center,
+    linear-gradient(to left, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0)) right center,
+    var(--bg-2);
+  background-repeat: no-repeat;
+  background-size: 34px 100%, 34px 100%, 18px 100%, 18px 100%, auto;
+  background-attachment: local, local, scroll, scroll, scroll;
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
   overflow-y: hidden;
@@ -212,6 +230,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .opt-group:last-child { border-right: none; }
 .opt-label { color: var(--ink-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; }
+label.opt-label { cursor: pointer; }
+/* Tabular, and wide enough for "100%", so a slider's row does not reflow while
+   you drag it. */
+.opt-value {
+  color: var(--ink-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
+}
 
 /* ---------------------------------------------------------------- inputs */
 
@@ -475,11 +503,20 @@ input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px;
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 14px; }
 
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+/*
+ * A button, not a div: picking a map kind is a choice a keyboard can make.
+ * Laid out as a column rather than left to the browser's button default, which
+ * centres short cards against tall ones and leaves a row of titles at three
+ * different heights.
+ */
 .card {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+  width: 100%; text-align: left; font: inherit;
   background: var(--bg-2); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 12px; cursor: pointer;
   transition: border-color 0.12s, background 0.12s;
 }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card:hover { border-color: var(--accent-dim); background: var(--bg-3); }
 .card.active { border-color: var(--accent); background: var(--accent-soft); }
 .card h4 { margin: 0 0 4px; font-size: 13px; color: var(--ink); font-family: var(--font-display); }
@@ -487,6 +524,9 @@ input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px;
 
 .hint { font-size: 11px; color: var(--ink-faint); line-height: 1.5; }
 .hint code { background: var(--bg-3); padding: 1px 4px; border-radius: 3px; color: var(--ink-dim); }
+/* A hint that is telling you something went wrong. Same size, louder colour —
+   an error that whispers in the same grey as the help text is not read. */
+.hint.error { color: var(--danger); }
 
 .pill {
   display: inline-block; padding: 1px 7px; border-radius: 10px;
@@ -508,13 +548,19 @@ input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px;
 .shortcut-table td { padding: 4px 6px; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
 .shortcut-table td:first-child { width: 120px; color: var(--ink-dim); }
 
+/* Hex key: a clickable index of every noted hex. */
+.hex-key-row { cursor: pointer; }
+.hex-key-row:hover td { background: var(--bg-hover, rgba(255, 255, 255, 0.06)); }
+.hex-key-row td:first-child { width: 58px; }
+.hex-key-row code { font-size: 11px; letter-spacing: 0.5px; }
+
 .empty {
   text-align: center; color: var(--ink-faint); padding: 26px 14px; font-size: 12px; line-height: 1.6;
 }
 
 .swatches { display: flex; flex-wrap: wrap; gap: 5px; }
 .swatch {
-  width: 22px; height: 22px; border-radius: 4px;
+  width: 22px; height: 22px; border-radius: 4px; padding: 0;
   border: 1px solid var(--line); cursor: pointer;
 }
 .swatch:hover { transform: scale(1.1); }
