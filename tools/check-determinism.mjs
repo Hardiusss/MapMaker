@@ -34,7 +34,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(4327, r));
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: process.env.AETHERIA_CHROME || undefined });
 const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 page.on('pageerror', (e) => console.log('PAGE ERROR', String(e)));
 await page.goto('http://localhost:4327/', { waitUntil: 'networkidle' });

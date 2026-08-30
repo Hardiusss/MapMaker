@@ -13,7 +13,7 @@ const server = http.createServer((req,res)=>{ const u=decodeURIComponent((req.ur
   res.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream'}); fs.createReadStream(f).pipe(res); });
 await new Promise(r=>server.listen(4343,r));
 
-const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch({ executablePath: process.env.AETHERIA_CHROME || undefined });
 const page = await b.newPage({ viewport:{ width:1500, height:1050 }, deviceScaleFactor:2 });
 page.on('pageerror', e=>console.log('PAGE ERROR', String(e)));
 await page.goto('http://localhost:4343/',{waitUntil:'networkidle'});

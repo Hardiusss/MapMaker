@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(4324, r));
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: process.env.AETHERIA_CHROME || undefined });
 const page = await browser.newPage();
 await page.goto('http://localhost:4324/', { waitUntil: 'networkidle' });
 await page.waitForFunction(() => !!window.Aetheria, { timeout: 20000 });

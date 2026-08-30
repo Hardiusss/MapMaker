@@ -66,7 +66,7 @@ const server = http.createServer((req, res) => {
 const PORT = Number(process.env.PORT || 4411);
 await new Promise((r) => server.listen(PORT, r));
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: process.env.AETHERIA_CHROME || undefined });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 let failed = false;
 page.on('pageerror', (e) => { failed = true; console.log('PAGE ERROR', String(e)); });

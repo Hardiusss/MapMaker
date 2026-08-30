@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(4319, r));
 console.log('serving dist on :4319');
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: process.env.AETHERIA_CHROME || undefined });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
 
 const errors = [];

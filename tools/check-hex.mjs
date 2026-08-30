@@ -17,13 +17,14 @@
 import pw from 'playwright';
 const { chromium } = pw;
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
-const dist='/home/claude/aetheria/dist';
+import { fileURLToPath } from 'node:url';
+const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css'};
 const server=http.createServer((q,r)=>{const u=(q.url||'/').split('?')[0];let f=path.join(dist,u==='/'?'index.html':u);
  if(!fs.existsSync(f)||fs.statSync(f).isDirectory())f=path.join(dist,'index.html');
  r.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream'});fs.createReadStream(f).pipe(r);});
 await new Promise(r=>server.listen(4502,r));
-const browser=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
+const browser=await chromium.launch({executablePath: process.env.AETHERIA_CHROME || undefined});
 const page=await browser.newPage();
 page.on('pageerror',e=>console.log('PAGE ERROR',String(e)));
 await page.goto('http://localhost:4502/',{waitUntil:'networkidle'});

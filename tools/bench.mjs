@@ -18,7 +18,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(4321, r));
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: process.env.AETHERIA_CHROME || undefined });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 page.on('console', (m) => { const t = m.text(); if (t.startsWith('[bench]')) console.log(t); });
 await page.goto('http://localhost:4321/', { waitUntil: 'networkidle' });

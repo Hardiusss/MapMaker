@@ -75,7 +75,7 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(4331, r));
 
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath: process.env.AETHERIA_CHROME || undefined,
   // Precise memory info makes performance.memory worth reading; expose-gc lets
   // us settle the heap before sampling instead of measuring collector lag.
   args: ['--enable-precise-memory-info', '--js-flags=--expose-gc'],
