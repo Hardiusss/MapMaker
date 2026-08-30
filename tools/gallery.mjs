@@ -3,7 +3,7 @@
  * layout, every battle biome, every landmass shape — so a change to a generator
  * can be eyeballed across the whole space rather than one lucky seed.
  */
-import pw from '/home/claude/.npm-global/lib/node_modules/playwright/index.js';
+import pw from 'playwright';
 const { chromium } = pw;
 import http from 'node:http';
 import fs from 'node:fs';

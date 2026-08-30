@@ -14,7 +14,7 @@
  *
  *   npm run build && node tools/check-hex.mjs
  */
-import pw from '/home/claude/.npm-global/lib/node_modules/playwright/index.js';
+import pw from 'playwright';
 const { chromium } = pw;
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
 const dist='/home/claude/aetheria/dist';

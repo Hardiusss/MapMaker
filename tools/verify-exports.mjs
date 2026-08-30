@@ -6,7 +6,7 @@
  * units, UVTT grid coordinates, Roll20 page settings, PDF headers, and a
  * lossless round-trip through the native project format.
  */
-import pw from '/home/claude/.npm-global/lib/node_modules/playwright/index.js';
+import pw from 'playwright';
 const { chromium } = pw;
 import http from 'node:http';
 import fs from 'node:fs';

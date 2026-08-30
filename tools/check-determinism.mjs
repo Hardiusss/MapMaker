@@ -14,7 +14,7 @@
  * synthesis, stamp rasterisation, path wobble, label layout — is downstream of
  * that comparison.
  */
-import pw from '/home/claude/.npm-global/lib/node_modules/playwright/index.js';
+import pw from 'playwright';
 const { chromium } = pw;
 import http from 'node:http';
 import fs from 'node:fs';

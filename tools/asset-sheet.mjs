@@ -5,7 +5,7 @@
  * about whether a thing is legible. This renders every stamp at map scale and
  * lays them out on a sheet so a bad silhouette is obvious at a glance.
  */
-import pw from '/home/claude/.npm-global/lib/node_modules/playwright/index.js';
+import pw from 'playwright';
 const { chromium } = pw;
 import http from 'node:http';
 import fs from 'node:fs';

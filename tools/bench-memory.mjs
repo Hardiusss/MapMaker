@@ -10,7 +10,7 @@
  * Run with a built `dist/`:  node tools/bench-memory.mjs
  * Exits non-zero if retained heap keeps climbing over identical work.
  */
-import pw from '/home/claude/.npm-global/lib/node_modules/playwright/index.js';
+import pw from 'playwright';
 const { chromium } = pw;
 import http from 'node:http';
 import fs from 'node:fs';
